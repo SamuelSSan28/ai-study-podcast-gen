@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@notionhq/client';
 import {
@@ -7,21 +7,37 @@ import {
   StudyTopicRepository,
 } from '../application/ports';
 import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { NotionSchemaProvisioner } from './notion-schema';
 
 type Page = { id: string; url: string; properties: Record<string, unknown> };
 @Injectable()
 export class NotionRepository
-  implements StudyPlanRepository, StudyTopicRepository, StudySessionRepository
+  implements StudyPlanRepository, StudyTopicRepository, StudySessionRepository, OnModuleInit
 {
   private readonly client: Client;
-  private readonly plansDb: string;
-  private readonly sessionsDb: string;
+  private readonly provisioner: NotionSchemaProvisioner;
+  private plansDb!: string;
+  private sessionsDb!: string;
+  private ready?: Promise<void>;
   constructor(config: ConfigService) {
     this.client = new Client({ auth: config.getOrThrow<string>('NOTION_API_KEY') });
-    this.plansDb = config.getOrThrow<string>('NOTION_STUDY_PLANS_DATABASE_ID');
-    this.sessionsDb = config.getOrThrow<string>('NOTION_SESSIONS_DATABASE_ID');
+    this.provisioner = new NotionSchemaProvisioner(
+      this.client,
+      config.getOrThrow<string>('NOTION_PARENT_PAGE_ID'),
+    );
+  }
+  async onModuleInit(): Promise<void> {
+    await this.ensureReady();
+  }
+  private async ensureReady(): Promise<void> {
+    this.ready ??= this.provisioner.provision().then(({ plans, records }) => {
+      this.plansDb = plans;
+      this.sessionsDb = records;
+    });
+    await this.ready;
   }
   async create(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<StudyPlan> {
+    await this.ensureReady();
     const page = await this.client.pages.create({
       parent: { database_id: this.plansDb },
       properties: this.planProperties(plan),
@@ -30,23 +46,28 @@ export class NotionRepository
     plan.notionPageId = page.id;
     plan.notionUrl = 'url' in page ? page.url : undefined;
     for (const topic of topics) await this.createTopic(topic);
+    await this.createWeekPages(page.id, topics);
     return plan;
   }
   async findAll(): Promise<StudyPlan[]> {
+    await this.ensureReady();
     return (await this.query(this.plansDb)).map((page) => this.planFromPage(page));
   }
   async findActive(): Promise<StudyPlan[]> {
+    await this.ensureReady();
     return (
       await this.query(this.plansDb, { property: 'Status', select: { equals: 'ACTIVE' } })
     ).map((page) => this.planFromPage(page));
   }
   async findById(id: string): Promise<StudyPlan | null> {
+    await this.ensureReady();
     const page = (
       await this.query(this.plansDb, { property: 'App ID', rich_text: { equals: id } })
     )[0];
     return page ? this.planFromPage(page) : null;
   }
   async findPlanned(planId: string): Promise<StudyPlanTopic[]> {
+    await this.ensureReady();
     return (
       await this.query(this.sessionsDb, {
         and: [
@@ -60,6 +81,7 @@ export class NotionRepository
       .sort((a, b) => a.week - b.week || a.sequence - b.sequence);
   }
   async findTopicById(id: string): Promise<StudyPlanTopic | null> {
+    await this.ensureReady();
     const page = (
       await this.query(this.sessionsDb, {
         and: [
@@ -71,6 +93,7 @@ export class NotionRepository
     return page ? this.topicFromPage(page) : null;
   }
   async findReady(planId: string): Promise<StudyPlanTopic[]> {
+    await this.ensureReady();
     return (
       await this.query(this.sessionsDb, {
         and: [
@@ -85,6 +108,7 @@ export class NotionRepository
     await this.updateTopic(topic);
   }
   async createSession(session: StudySession): Promise<StudySession> {
+    await this.ensureReady();
     const page = await this.client.pages.create({
       parent: { database_id: this.sessionsDb },
       properties: this.sessionProperties(session),
@@ -94,12 +118,14 @@ export class NotionRepository
     return session;
   }
   async findByGenerationKey(key: string): Promise<StudySession | null> {
+    await this.ensureReady();
     const page = (
       await this.query(this.sessionsDb, { property: 'Generation Key', rich_text: { equals: key } })
     )[0];
     return page ? this.sessionFromPage(page) : null;
   }
   async findByPlan(planId: string): Promise<StudySession[]> {
+    await this.ensureReady();
     return Promise.all(
       (
         await this.query(this.sessionsDb, {
@@ -112,6 +138,7 @@ export class NotionRepository
     );
   }
   async findSessionById(id: string): Promise<StudySession | null> {
+    await this.ensureReady();
     const page = (
       await this.query(this.sessionsDb, {
         and: [
@@ -145,6 +172,25 @@ export class NotionRepository
       children: this.blocks([topic.description, ...topic.learningObjectives]),
     });
     topic.notionPageId = page.id;
+  }
+  private async createWeekPages(planPageId: string, topics: StudyPlanTopic[]): Promise<void> {
+    const weeks = new Map<number, StudyPlanTopic[]>();
+    for (const topic of topics) weeks.set(topic.week, [...(weeks.get(topic.week) ?? []), topic]);
+    for (const [week, weekTopics] of [...weeks].sort(([a], [b]) => a - b)) {
+      await this.client.pages.create({
+        parent: { type: 'page_id', page_id: planPageId },
+        properties: {
+          title: this.title(`Week ${week.toString().padStart(2, '0')}`),
+        },
+        children: weekTopics
+          .sort((a, b) => a.sequence - b.sequence)
+          .map((topic) => ({
+            object: 'block',
+            type: 'link_to_page',
+            link_to_page: { type: 'page_id', page_id: topic.notionPageId },
+          })),
+      } as never);
+    }
   }
   private async updateTopic(topic: StudyPlanTopic): Promise<void> {
     if (!topic.notionPageId) throw new Error('Topic has no Notion page');

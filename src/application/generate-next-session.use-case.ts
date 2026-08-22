@@ -10,7 +10,7 @@ import {
   TOPIC_REPOSITORY,
 } from './ports';
 import { StudyPlanTopic, StudySession } from '../domain/models';
-import { tagOverlap } from '../domain/topic-normalization';
+import { selectNextTopic } from '../domain/next-topic-policy';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { LocalAudioService } from '../audio/local-audio.service';
@@ -36,20 +36,14 @@ export class GenerateNextStudySessionUseCase {
     const candidates = await this.topics.findPlanned(planId);
     if (!candidates.length) throw new Error('No planned topics remain');
     const history = await this.topics.findReady(planId);
-    let topic = candidates.find(
-      (candidate) =>
-        !history.some((previous) => previous.slug === candidate.slug) &&
-        !history.some(
-          (previous) =>
-            tagOverlap(previous.tags, candidate.tags) > 0.85 &&
-            candidate.depthDelta.trim().length < 10,
-        ),
+    const selection = await selectNextTopic(candidates, history, (candidate, completed) =>
+      this.ai.validateDuplicate(candidate, completed),
     );
-    if (!topic) throw new Error('No unique eligible topic remains');
-    if ((await this.ai.validateDuplicate(topic, history)) === 'DUPLICATE') {
-      topic = candidates.find((candidate) => candidate.id !== topic?.id);
-      if (!topic) throw new Error('All eligible topics were duplicates');
-    }
+    const topic = selection.topic;
+    if (!topic)
+      throw new Error(
+        `No eligible unique topic remains (${selection.rejected.length} roadmap topics rejected)`,
+      );
     const key = `${planId}:${topic.id}`;
     const existing = await this.sessions.findByGenerationKey(key);
     if (existing) return existing;
