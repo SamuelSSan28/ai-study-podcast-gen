@@ -4,12 +4,27 @@ import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import { AiGateway, GeneratedPlan, PlanGenerationInput } from '../application/ports';
-import { ScriptTurn, StudyContent, StudyPlanTopic } from '../domain/models';
+import {
+  ConversationPlan,
+  CreateConversationPlanInput,
+  PodcastScript,
+  RawPodcastScript,
+  StudyContent,
+  StudyPlanTopic,
+} from '../domain/models';
 import { AiModelConfig } from '../config/ai-model.config';
 import { LocalAudioService } from '../audio/local-audio.service';
-import { buildTtsChunks } from '../audio/tts-chunker';
-import { buildContentPrompt, buildPlanPrompt, buildScriptPrompt } from './prompts/prompts';
-import { contentSchema, duplicateSchema, generatedPlanSchema, scriptSchema } from './schemas';
+import { buildContentPrompt, buildPlanPrompt } from './prompts/prompts';
+import { buildConversationPlannerPrompt } from './prompts/conversation-planner.prompt';
+import { buildPodcastScriptPrompt } from './prompts/podcast-script.prompt';
+import { buildDialoguePolisherPrompt } from './prompts/dialogue-polisher.prompt';
+import {
+  contentSchema,
+  conversationPlanSchema,
+  duplicateSchema,
+  generatedPlanSchema,
+  scriptSchema,
+} from './schemas';
 
 @Injectable()
 export class OpenAiGateway implements AiGateway {
@@ -46,33 +61,44 @@ export class OpenAiGateway implements AiGateway {
       contentSchema,
     );
   }
-  async generateScript(
-    topic: StudyPlanTopic,
-    content: StudyContent,
-    minutes: number,
-  ): Promise<ScriptTurn[]> {
-    return (
-      await this.json(
-        this.models.podcast,
-        buildScriptPrompt(topic, content, minutes),
-        'podcast_script',
-        scriptSchema,
-      )
-    ).turns;
+  async createConversationPlan(input: CreateConversationPlanInput): Promise<ConversationPlan> {
+    return this.json(
+      this.models.conversationPlan,
+      buildConversationPlannerPrompt(input),
+      'conversation_plan',
+      conversationPlanSchema,
+    );
   }
-  async generateSpeech(turns: ScriptTurn[], destination: string): Promise<void> {
-    const chunks: Buffer[] = [];
-    for (const turn of buildTtsChunks(turns)) {
-      const voice = turn.speaker === 'CANDIDATE' ? 'coral' : 'alloy';
-      const speech = await this.client.audio.speech.create({
-        model: this.models.tts,
-        voice,
-        input: `${turn.speaker}: ${turn.text}`,
-        response_format: 'mp3',
-      });
-      chunks.push(Buffer.from(await speech.arrayBuffer()));
-    }
-    await this.audio.save(destination, chunks);
+  async generateScript(content: StudyContent, plan: ConversationPlan): Promise<RawPodcastScript> {
+    return this.json(
+      this.models.podcast,
+      buildPodcastScriptPrompt(content, plan),
+      'podcast_script',
+      scriptSchema,
+    );
+  }
+  async polishDialogue(script: RawPodcastScript): Promise<PodcastScript> {
+    return this.json(
+      this.models.polish,
+      buildDialoguePolisherPrompt(script),
+      'polished_dialogue',
+      scriptSchema,
+    );
+  }
+  async generateSpeech(
+    text: string,
+    voice: string,
+    instructions: string | undefined,
+    destination: string,
+  ): Promise<void> {
+    const speech = await this.client.audio.speech.create({
+      model: this.models.tts,
+      voice,
+      input: text,
+      instructions,
+      response_format: 'mp3',
+    });
+    await this.audio.save(destination, [Buffer.from(await speech.arrayBuffer())]);
   }
   private async json<T>(
     model: string,

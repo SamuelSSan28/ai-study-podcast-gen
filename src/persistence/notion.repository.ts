@@ -40,7 +40,7 @@ export class NotionRepository
     await this.ensureReady();
     const page = await this.client.pages.create({
       parent: { database_id: this.plansDb },
-      properties: this.planProperties(plan),
+      properties: this.planProperties(plan) as never,
       children: this.blocks([`Goal: ${plan.goal}`, plan.overview]),
     });
     plan.notionPageId = page.id;
@@ -111,7 +111,7 @@ export class NotionRepository
     await this.ensureReady();
     const page = await this.client.pages.create({
       parent: { database_id: this.sessionsDb },
-      properties: this.sessionProperties(session),
+      properties: this.sessionProperties(session) as never,
     });
     session.notionPageId = page.id;
     session.notionUrl = 'url' in page ? page.url : undefined;
@@ -153,11 +153,19 @@ export class NotionRepository
     if (!session.notionPageId) throw new Error('Session has no Notion page');
     await this.client.pages.update({
       page_id: session.notionPageId,
-      properties: this.sessionProperties(session),
+      properties: this.sessionProperties(session) as never,
     });
     const blocks: string[] = [];
     if (session.content) blocks.push(`STUDY_CONTENT_JSON:${JSON.stringify(session.content)}`);
-    if (session.script) blocks.push(`SCRIPT_JSON:${JSON.stringify(session.script)}`);
+    if (session.conversationPlan)
+      blocks.push(`CONVERSATION_PLAN_JSON:${JSON.stringify(session.conversationPlan)}`);
+    if (session.rawScript) blocks.push(`RAW_SCRIPT_JSON:${JSON.stringify(session.rawScript)}`);
+    if (session.script) {
+      blocks.push(`SCRIPT_JSON:${JSON.stringify(session.script)}`);
+      blocks.push(
+        `Podcast Script\n${session.script.turns.map((turn) => `${turn.speaker[0] + turn.speaker.slice(1).toLowerCase()}:\n${turn.text}`).join('\n\n')}`,
+      );
+    }
     if (session.audioUrl) blocks.push(`AUDIO\n${session.audioUrl}`);
     if (blocks.length)
       await this.client.blocks.children.append({
@@ -168,7 +176,7 @@ export class NotionRepository
   private async createTopic(topic: StudyPlanTopic): Promise<void> {
     const page = await this.client.pages.create({
       parent: { database_id: this.sessionsDb },
-      properties: this.topicProperties(topic),
+      properties: this.topicProperties(topic) as never,
       children: this.blocks([topic.description, ...topic.learningObjectives]),
     });
     topic.notionPageId = page.id;
@@ -196,7 +204,7 @@ export class NotionRepository
     if (!topic.notionPageId) throw new Error('Topic has no Notion page');
     await this.client.pages.update({
       page_id: topic.notionPageId,
-      properties: this.topicProperties(topic),
+      properties: this.topicProperties(topic) as never,
     });
   }
   private async query(databaseId: string, filter?: object): Promise<Page[]> {
@@ -250,6 +258,8 @@ export class NotionRepository
     const metadata = { ...s };
     delete metadata.content;
     delete metadata.script;
+    delete metadata.rawScript;
+    delete metadata.conversationPlan;
     return {
       Name: this.title(s.title),
       'App ID': this.text(s.id),
@@ -274,16 +284,21 @@ export class NotionRepository
   private async sessionFromPage(p: Page): Promise<StudySession> {
     const session = { ...this.metadata<StudySession>(p), notionPageId: p.id, notionUrl: p.url };
     const text = await this.readBlockText(p.id);
-    const content = [
-      ...text.matchAll(
-        /STUDY_CONTENT_JSON:(\{[^]*?\})(?=STUDY_CONTENT_JSON:|SCRIPT_JSON:|AUDIO\n|$)/g,
-      ),
-    ].at(-1)?.[1];
-    const script = [
-      ...text.matchAll(/SCRIPT_JSON:(\[[^]*?\])(?=STUDY_CONTENT_JSON:|SCRIPT_JSON:|AUDIO\n|$)/g),
-    ].at(-1)?.[1];
-    if (content) session.content = JSON.parse(content);
-    if (script) session.script = JSON.parse(script);
+    const marker =
+      '(?=STUDY_CONTENT_JSON:|CONVERSATION_PLAN_JSON:|RAW_SCRIPT_JSON:|SCRIPT_JSON:|Podcast Script\\n|AUDIO\\n|$)';
+    const latest = (name: string): string | undefined =>
+      [...text.matchAll(new RegExp(`${name}:(\\{[^]*?\\})${marker}`, 'g'))].at(-1)?.[1];
+    const content = latest('STUDY_CONTENT_JSON');
+    const conversationPlan = latest('CONVERSATION_PLAN_JSON');
+    const rawScript = latest('RAW_SCRIPT_JSON');
+    const script = latest('SCRIPT_JSON');
+    if (content) session.content = JSON.parse(content) as StudySession['content'];
+    if (conversationPlan)
+      session.conversationPlan = JSON.parse(
+        conversationPlan,
+      ) as StudySession['conversationPlan'];
+    if (rawScript) session.rawScript = JSON.parse(rawScript) as StudySession['rawScript'];
+    if (script) session.script = JSON.parse(script) as StudySession['script'];
     return session;
   }
   private async readBlockText(blockId: string): Promise<string> {

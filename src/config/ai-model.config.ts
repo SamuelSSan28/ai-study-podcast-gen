@@ -14,7 +14,13 @@ export class AiModelConfig {
     return this.config.getOrThrow<string>('OPENAI_VALIDATION_MODEL');
   }
   get podcast(): string {
-    return this.content;
+    return this.config.getOrThrow<string>('OPENAI_SCRIPT_MODEL');
+  }
+  get conversationPlan(): string {
+    return this.config.getOrThrow<string>('OPENAI_CONVERSATION_PLAN_MODEL');
+  }
+  get polish(): string {
+    return this.config.getOrThrow<string>('OPENAI_POLISH_MODEL');
   }
   get tts(): string {
     return this.config.getOrThrow<string>('OPENAI_TTS_MODEL');

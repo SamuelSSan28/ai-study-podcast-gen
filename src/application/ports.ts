@@ -1,5 +1,8 @@
 import {
-  ScriptTurn,
+  ConversationPlan,
+  CreateConversationPlanInput,
+  PodcastScript,
+  RawPodcastScript,
   StudyContent,
   StudyPlan,
   StudyPlanTopic,
@@ -39,19 +42,18 @@ export interface AiGateway {
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'>;
   generateContent(topic: StudyPlanTopic, context: string): Promise<StudyContent>;
-  generateScript(
-    topic: StudyPlanTopic,
-    content: StudyContent,
-    minutes: number,
-  ): Promise<ScriptTurn[]>;
-  generateSpeech(turns: ScriptTurn[], destination: string): Promise<void>;
+  createConversationPlan(input: CreateConversationPlanInput): Promise<ConversationPlan>;
+  generateScript(content: StudyContent, plan: ConversationPlan): Promise<RawPodcastScript>;
+  polishDialogue(script: RawPodcastScript): Promise<PodcastScript>;
+  generateSpeech(
+    text: string,
+    voice: string,
+    instructions: string | undefined,
+    destination: string,
+  ): Promise<void>;
 }
 export interface AudioStorage {
-  upload(input: {
-    filePath: string;
-    filename: string;
-    folderPath: string[];
-  }): Promise<{
+  upload(input: { filePath: string; filename: string; folderPath: string[] }): Promise<{
     externalId: string;
     listenUrl: string;
     downloadUrl?: string;

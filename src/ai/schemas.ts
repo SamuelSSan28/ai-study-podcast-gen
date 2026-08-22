@@ -37,9 +37,73 @@ export const contentSchema = z.object({
   challenge: z.string().nullable(),
 });
 export const scriptSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  version: z.string(),
+  estimatedDurationSeconds: z.number().int().positive(),
   turns: z
     .array(
-      z.object({ speaker: z.enum(['HOST', 'INTERVIEWER', 'CANDIDATE']), text: z.string().min(1) }),
+      z.object({
+        id: z.string(),
+        speaker: z.enum(['HOST', 'INTERVIEWER', 'CANDIDATE']),
+        text: z.string().min(1),
+        sectionId: z.string(),
+        sequence: z.number().int().nonnegative(),
+        delivery: z
+          .object({
+            tone: z
+              .enum(['neutral', 'curious', 'skeptical', 'thoughtful', 'confident', 'concerned'])
+              .optional(),
+            pace: z.enum(['slow', 'medium', 'fast']).optional(),
+            emphasis: z.array(z.string()).optional(),
+            pauseBeforeMs: z.number().int().nonnegative().optional(),
+            pauseAfterMs: z.number().int().nonnegative().optional(),
+          })
+          .optional(),
+      }),
     )
     .min(4),
+});
+export const conversationPlanSchema = z.object({
+  version: z.string(),
+  title: z.string(),
+  context: z.object({
+    companyType: z.string(),
+    product: z.string(),
+    initialProblem: z.string(),
+    scale: z.array(z.string()),
+  }),
+  objectives: z.array(z.string()),
+  sections: z
+    .array(
+      z.object({
+        id: z.string(),
+        topic: z.string(),
+        objective: z.string(),
+        initialQuestion: z.string(),
+        conceptsToExplore: z.array(z.string()),
+        candidateExpectedReasoning: z.array(z.string()),
+        interviewerChallenges: z.array(z.string()),
+        constraintsToReveal: z.array(
+          z.object({
+            afterTurn: z.number().int().positive().optional(),
+            condition: z.string().optional(),
+            reveal: z.string(),
+            expectedImpact: z.string(),
+          }),
+        ),
+        transitionHint: z.string().optional(),
+      }),
+    )
+    .min(2),
+  incident: z
+    .object({
+      title: z.string(),
+      symptoms: z.array(z.string()),
+      constraints: z.array(z.string()),
+      expectedInvestigation: z.array(z.string()),
+      sectionId: z.string(),
+    })
+    .optional(),
+  closing: z.object({ finalQuestion: z.string(), expectedThemes: z.array(z.string()) }),
 });
