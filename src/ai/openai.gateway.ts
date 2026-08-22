@@ -7,6 +7,7 @@ import { AiGateway, GeneratedPlan, PlanGenerationInput } from '../application/po
 import {
   ConversationPlan,
   CreateConversationPlanInput,
+  PodcastMode,
   PodcastScript,
   RawPodcastScript,
   StudyContent,
@@ -15,16 +16,8 @@ import {
 import { AiModelConfig } from '../config/ai-model.config';
 import { LocalAudioService } from '../audio/local-audio.service';
 import { buildContentPrompt, buildPlanPrompt } from './prompts/prompts';
-import { buildConversationPlannerPrompt } from './prompts/conversation-planner.prompt';
-import { buildPodcastScriptPrompt } from './prompts/podcast-script.prompt';
-import { buildDialoguePolisherPrompt } from './prompts/dialogue-polisher.prompt';
-import {
-  contentSchema,
-  conversationPlanSchema,
-  duplicateSchema,
-  generatedPlanSchema,
-  scriptSchema,
-} from './schemas';
+import { resolvePrompt } from './prompts/prompt.factory';
+import { contentSchema, duplicateSchema, generatedPlanSchema } from './schemas';
 
 @Injectable()
 export class OpenAiGateway implements AiGateway {
@@ -61,29 +54,29 @@ export class OpenAiGateway implements AiGateway {
       contentSchema,
     );
   }
-  async createConversationPlan(input: CreateConversationPlanInput): Promise<ConversationPlan> {
+  async createConversationPlan(
+    input: CreateConversationPlanInput,
+    mode: PodcastMode,
+  ): Promise<ConversationPlan> {
+    const resolved = resolvePrompt({ stage: 'conversation-plan', mode, value: input });
     return this.json(
       this.models.conversationPlan,
-      buildConversationPlannerPrompt(input),
+      resolved.prompt,
       'conversation_plan',
-      conversationPlanSchema,
+      resolved.schema,
     );
   }
-  async generateScript(content: StudyContent, plan: ConversationPlan): Promise<RawPodcastScript> {
-    return this.json(
-      this.models.podcast,
-      buildPodcastScriptPrompt(content, plan),
-      'podcast_script',
-      scriptSchema,
-    );
+  async generateScript(
+    content: StudyContent,
+    plan: ConversationPlan,
+    mode: PodcastMode,
+  ): Promise<RawPodcastScript> {
+    const resolved = resolvePrompt({ stage: 'podcast-script', mode, value: { content, plan } });
+    return this.json(this.models.podcast, resolved.prompt, 'podcast_script', resolved.schema);
   }
-  async polishDialogue(script: RawPodcastScript): Promise<PodcastScript> {
-    return this.json(
-      this.models.polish,
-      buildDialoguePolisherPrompt(script),
-      'polished_dialogue',
-      scriptSchema,
-    );
+  async polishDialogue(script: RawPodcastScript, mode: PodcastMode): Promise<PodcastScript> {
+    const resolved = resolvePrompt({ stage: 'dialogue-polisher', mode, value: script });
+    return this.json(this.models.polish, resolved.prompt, 'polished_dialogue', resolved.schema);
   }
   async generateSpeech(
     text: string,

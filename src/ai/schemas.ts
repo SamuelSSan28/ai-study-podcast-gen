@@ -36,7 +36,7 @@ export const contentSchema = z.object({
   reviewQuestions: z.array(z.string()),
   challenge: z.string().nullable(),
 });
-export const scriptSchema = z.object({
+const scriptBaseSchema = z.object({
   id: z.string(),
   title: z.string(),
   version: z.string(),
@@ -45,7 +45,7 @@ export const scriptSchema = z.object({
     .array(
       z.object({
         id: z.string(),
-        speaker: z.enum(['HOST', 'INTERVIEWER', 'CANDIDATE']),
+        speaker: z.enum(['HOST', 'INTERVIEWER', 'CANDIDATE', 'ENGINEER_A', 'ENGINEER_B']),
         text: z.string().min(1),
         sectionId: z.string(),
         sequence: z.number().int().nonnegative(),
@@ -64,7 +64,17 @@ export const scriptSchema = z.object({
     )
     .min(4),
 });
-export const conversationPlanSchema = z.object({
+export const interviewScriptSchema = scriptBaseSchema.refine(
+  ({ turns }) =>
+    ['INTERVIEWER', 'CANDIDATE'].every((speaker) => turns.some((turn) => turn.speaker === speaker)),
+  'Interview scripts require INTERVIEWER and CANDIDATE',
+);
+export const discussionScriptSchema = scriptBaseSchema.refine(
+  ({ turns }) =>
+    ['ENGINEER_A', 'ENGINEER_B'].every((speaker) => turns.some((turn) => turn.speaker === speaker)),
+  'Discussion scripts require ENGINEER_A and ENGINEER_B',
+);
+const conversationPlanBaseSchema = z.object({
   version: z.string(),
   title: z.string(),
   context: z.object({
@@ -74,6 +84,19 @@ export const conversationPlanSchema = z.object({
     scale: z.array(z.string()),
   }),
   objectives: z.array(z.string()),
+  incident: z
+    .object({
+      title: z.string(),
+      symptoms: z.array(z.string()),
+      constraints: z.array(z.string()),
+      expectedInvestigation: z.array(z.string()),
+      sectionId: z.string(),
+    })
+    .optional(),
+  closing: z.object({ finalQuestion: z.string(), expectedThemes: z.array(z.string()) }),
+});
+export const interviewConversationPlanSchema = conversationPlanBaseSchema.extend({
+  mode: z.literal('INTERVIEW'),
   sections: z
     .array(
       z.object({
@@ -96,14 +119,31 @@ export const conversationPlanSchema = z.object({
       }),
     )
     .min(2),
-  incident: z
-    .object({
-      title: z.string(),
-      symptoms: z.array(z.string()),
-      constraints: z.array(z.string()),
-      expectedInvestigation: z.array(z.string()),
-      sectionId: z.string(),
-    })
-    .optional(),
-  closing: z.object({ finalQuestion: z.string(), expectedThemes: z.array(z.string()) }),
+});
+export const discussionConversationPlanSchema = conversationPlanBaseSchema.extend({
+  mode: z.literal('DISCUSSION'),
+  sections: z
+    .array(
+      z.object({
+        id: z.string(),
+        topic: z.string(),
+        objective: z.string(),
+        entryPoint: z.string(),
+        discussionGoal: z.string(),
+        conceptsToExplore: z.array(z.string()),
+        tensions: z.array(z.string()),
+        questionsToNaturallyRaise: z.array(z.string()),
+        scenarioReveals: z.array(
+          z.object({
+            afterTurn: z.number().int().positive().optional(),
+            condition: z.string().optional(),
+            reveal: z.string(),
+            expectedImpact: z.string(),
+          }),
+        ),
+        possibleDisagreement: z.string().optional(),
+        connectionToPreviousSection: z.string().optional(),
+      }),
+    )
+    .min(2),
 });

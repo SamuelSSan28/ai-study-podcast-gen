@@ -2,6 +2,7 @@ import {
   ConversationPlan,
   CreateConversationPlanInput,
   PodcastScript,
+  PodcastMode,
   RawPodcastScript,
   StudyContent,
   StudyPlan,
@@ -42,9 +43,16 @@ export interface AiGateway {
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'>;
   generateContent(topic: StudyPlanTopic, context: string): Promise<StudyContent>;
-  createConversationPlan(input: CreateConversationPlanInput): Promise<ConversationPlan>;
-  generateScript(content: StudyContent, plan: ConversationPlan): Promise<RawPodcastScript>;
-  polishDialogue(script: RawPodcastScript): Promise<PodcastScript>;
+  createConversationPlan(
+    input: CreateConversationPlanInput,
+    mode: PodcastMode,
+  ): Promise<ConversationPlan>;
+  generateScript(
+    content: StudyContent,
+    plan: ConversationPlan,
+    mode: PodcastMode,
+  ): Promise<RawPodcastScript>;
+  polishDialogue(script: RawPodcastScript, mode: PodcastMode): Promise<PodcastScript>;
   generateSpeech(
     text: string,
     voice: string,

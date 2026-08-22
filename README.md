@@ -11,7 +11,7 @@ The goal is to study the engineering decisions behind concrete use cases: how a 
 3. The roadmap and session state are stored in Notion.
 4. At the configured time, the scheduler selects the next eligible topic.
 5. Files under `knowledge/` provide additional context.
-6. The application generates use-case-driven technical content, a conversational script, and audio in recoverable stages.
+6. The application generates use-case-driven technical content, a conversational script, and audio in recoverable stages. Each episode can be a peer `DISCUSSION` or an `INTERVIEW` simulation while sharing the same content and audio pipeline.
 7. The episode becomes available through the API and is announced on Discord.
 
 Episodes can also be generated manually through the HTTP API.

@@ -1,4 +1,5 @@
 export type PlanStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+export type PodcastMode = 'INTERVIEW' | 'DISCUSSION';
 export type TopicStatus = 'PLANNED' | 'GENERATING' | 'READY' | 'FAILED' | 'SKIPPED';
 export type SessionStage =
   | 'CONTENT_PENDING'
@@ -75,7 +76,7 @@ export interface ConstraintReveal {
   reveal: string;
   expectedImpact: string;
 }
-export interface ConversationSection {
+export interface InterviewConversationSection {
   id: string;
   topic: string;
   objective: string;
@@ -86,6 +87,19 @@ export interface ConversationSection {
   constraintsToReveal: ConstraintReveal[];
   transitionHint?: string;
 }
+export interface DiscussionSection {
+  id: string;
+  topic: string;
+  objective: string;
+  entryPoint: string;
+  discussionGoal: string;
+  conceptsToExplore: string[];
+  tensions: string[];
+  questionsToNaturallyRaise: string[];
+  scenarioReveals: ConstraintReveal[];
+  possibleDisagreement?: string;
+  connectionToPreviousSection?: string;
+}
 export interface IncidentScenario {
   title: string;
   symptoms: string[];
@@ -93,15 +107,23 @@ export interface IncidentScenario {
   expectedInvestigation: string[];
   sectionId: string;
 }
-export interface ConversationPlan {
+interface ConversationPlanBase {
   version: string;
   title: string;
   context: { companyType: string; product: string; initialProblem: string; scale: string[] };
   objectives: string[];
-  sections: ConversationSection[];
   incident?: IncidentScenario;
   closing: { finalQuestion: string; expectedThemes: string[] };
 }
+export interface InterviewConversationPlan extends ConversationPlanBase {
+  mode: 'INTERVIEW';
+  sections: InterviewConversationSection[];
+}
+export interface DiscussionConversationPlan extends ConversationPlanBase {
+  mode: 'DISCUSSION';
+  sections: DiscussionSection[];
+}
+export type ConversationPlan = InterviewConversationPlan | DiscussionConversationPlan;
 export interface StudyPlanContext {
   title: string;
   goal: string;
@@ -120,7 +142,7 @@ export interface CreateConversationPlanInput {
   targetMinutes: number;
 }
 
-export type PodcastSpeaker = 'INTERVIEWER' | 'CANDIDATE' | 'HOST';
+export type PodcastSpeaker = 'INTERVIEWER' | 'CANDIDATE' | 'ENGINEER_A' | 'ENGINEER_B' | 'HOST';
 export interface DeliveryDirection {
   tone?: 'neutral' | 'curious' | 'skeptical' | 'thoughtful' | 'confident' | 'concerned';
   pace?: 'slow' | 'medium' | 'fast';
@@ -168,6 +190,7 @@ export interface StudySession {
   studyPlanId: string;
   topicId: string;
   title: string;
+  podcastMode: PodcastMode;
   stage: SessionStage;
   lastSuccessfulStage: Exclude<SessionStage, 'FAILED'>;
   summary: string;

@@ -4,16 +4,16 @@ The API is available at `http://localhost:3000` by default. Routes that start or
 
 ## Endpoints
 
-| Method | Route | Description |
-| --- | --- | --- |
-| `POST` | `/study-plans/generate?token=...` | Create a roadmap |
-| `GET` | `/study-plans` | List roadmaps |
-| `GET` | `/study-plans/:id` | Get a roadmap |
-| `POST` | `/study-plans/:id/generate-next?token=...` | Generate the next session |
-| `GET` | `/study-plans/:id/sessions` | List sessions for a roadmap |
-| `GET` | `/sessions/:id` | Get a session |
-| `POST` | `/sessions/:id/retry?token=...` | Resume a failed generation |
-| `GET` | `/audio/:sessionId` | Stream a generated MP3 |
+| Method | Route                                                      | Description                 |
+| ------ | ---------------------------------------------------------- | --------------------------- |
+| `POST` | `/study-plans/generate?token=...`                          | Create a roadmap            |
+| `GET`  | `/study-plans`                                             | List roadmaps               |
+| `GET`  | `/study-plans/:id`                                         | Get a roadmap               |
+| `POST` | `/study-plans/:id/generate-next?token=...&mode=DISCUSSION` | Generate the next session   |
+| `GET`  | `/study-plans/:id/sessions`                                | List sessions for a roadmap |
+| `GET`  | `/sessions/:id`                                            | Get a session               |
+| `POST` | `/sessions/:id/retry?token=...`                            | Resume a failed generation  |
+| `GET`  | `/audio/:sessionId`                                        | Stream a generated MP3      |
 
 ## Create a roadmap
 
@@ -36,8 +36,11 @@ curl -X POST 'http://localhost:3000/study-plans/generate?token=change-me' \
 
 ```bash
 curl -X POST \
-  'http://localhost:3000/study-plans/<roadmap-id>/generate-next?token=change-me'
+  'http://localhost:3000/study-plans/<roadmap-id>/generate-next?token=change-me&mode=DISCUSSION'
 ```
+
+`mode` accepts `DISCUSSION` for a peer-to-peer technical podcast or `INTERVIEW` for an
+interviewer/candidate simulation. When omitted, the API uses `DEFAULT_PODCAST_MODE`.
 
 ## Retry a failed generation
 

@@ -11,7 +11,7 @@ import {
   AUDIO_STORAGE,
   AudioStorage,
 } from './ports';
-import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
 import { selectNextTopic } from '../domain/next-topic-policy';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -26,9 +26,12 @@ import { PodcastScriptValidator } from '../conversation/podcast-script.validator
 import { ConfigurableAudioDirector } from '../audio/audio-director';
 import { TurnBasedTtsService } from '../audio/turn-based-tts.service';
 import { FfmpegAudioComposer } from '../audio/audio-composer';
-import { CONVERSATION_PLANNER_PROMPT_VERSION } from '../ai/prompts/conversation-planner.prompt';
-import { PODCAST_SCRIPT_PROMPT_VERSION } from '../ai/prompts/podcast-script.prompt';
-import { DIALOGUE_POLISHER_PROMPT_VERSION } from '../ai/prompts/dialogue-polisher.prompt';
+import { INTERVIEW_PLANNER_PROMPT_VERSION } from '../ai/prompts/interview/conversation-planner.prompt';
+import { INTERVIEW_SCRIPT_PROMPT_VERSION } from '../ai/prompts/interview/podcast-script.prompt';
+import { INTERVIEW_POLISHER_PROMPT_VERSION } from '../ai/prompts/interview/dialogue-polisher.prompt';
+import { DISCUSSION_PLANNER_PROMPT_VERSION } from '../ai/prompts/discussion/conversation-planner.prompt';
+import { DISCUSSION_SCRIPT_PROMPT_VERSION } from '../ai/prompts/discussion/podcast-script.prompt';
+import { DISCUSSION_POLISHER_PROMPT_VERSION } from '../ai/prompts/discussion/dialogue-polisher.prompt';
 @Injectable()
 export class GenerateNextStudySessionUseCase {
   constructor(
@@ -50,7 +53,9 @@ export class GenerateNextStudySessionUseCase {
     private readonly tts: TurnBasedTtsService,
     private readonly composer: FfmpegAudioComposer,
   ) {}
-  async execute(planId: string): Promise<StudySession> {
+  async execute(planId: string, requestedMode?: PodcastMode): Promise<StudySession> {
+    const mode =
+      requestedMode ?? this.config.get<PodcastMode>('DEFAULT_PODCAST_MODE', 'DISCUSSION');
     const plan = await this.plans.findById(planId);
     if (!plan || plan.status !== 'ACTIVE') throw new Error('Active study plan not found');
     const candidates = await this.topics.findPlanned(planId);
@@ -64,7 +69,7 @@ export class GenerateNextStudySessionUseCase {
       throw new Error(
         `No eligible unique topic remains (${selection.rejected.length} roadmap topics rejected)`,
       );
-    const key = `${planId}:${topic.id}`;
+    const key = `${planId}:${topic.id}:${mode}`;
     const existing = await this.sessions.findByGenerationKey(key);
     if (existing) return existing;
     topic.status = 'GENERATING';
@@ -75,6 +80,7 @@ export class GenerateNextStudySessionUseCase {
       studyPlanId: planId,
       topicId: topic.id,
       title: topic.title,
+      podcastMode: mode,
       stage: 'CONTENT_PENDING',
       lastSuccessfulStage: 'CONTENT_PENDING',
       summary: topic.summary,
@@ -87,9 +93,14 @@ export class GenerateNextStudySessionUseCase {
       conversationModel: this.models.conversationPlan,
       scriptModel: this.models.podcast,
       polishModel: this.models.polish,
-      conversationPlanVersion: CONVERSATION_PLANNER_PROMPT_VERSION,
-      scriptPromptVersion: PODCAST_SCRIPT_PROMPT_VERSION,
-      polisherPromptVersion: DIALOGUE_POLISHER_PROMPT_VERSION,
+      conversationPlanVersion:
+        mode === 'INTERVIEW' ? INTERVIEW_PLANNER_PROMPT_VERSION : DISCUSSION_PLANNER_PROMPT_VERSION,
+      scriptPromptVersion:
+        mode === 'INTERVIEW' ? INTERVIEW_SCRIPT_PROMPT_VERSION : DISCUSSION_SCRIPT_PROMPT_VERSION,
+      polisherPromptVersion:
+        mode === 'INTERVIEW'
+          ? INTERVIEW_POLISHER_PROMPT_VERSION
+          : DISCUSSION_POLISHER_PROMPT_VERSION,
       retryCount: 0,
     };
     await this.sessions.createSession(session);
@@ -103,6 +114,7 @@ export class GenerateNextStudySessionUseCase {
     if (!topic) throw new Error('Session topic not found');
     const plan = await this.plans.findById(session.studyPlanId);
     if (!plan) throw new Error('Session study plan not found');
+    session.podcastMode ??= 'INTERVIEW';
     session.failureMessage = undefined;
     session.lastError = undefined;
     session.retryCount += 1;
@@ -129,13 +141,16 @@ export class GenerateNextStudySessionUseCase {
         const prior = (await this.sessions.findByPlan(plan.id))
           .filter((item) => item.id !== session.id && item.stage === 'COMPLETED')
           .map(({ title, summary }) => ({ title, summary }));
-        session.conversationPlan = await this.planner.createPlan({
-          studyPlanContext: { title: plan.title, goal: plan.goal, level: plan.level },
-          topic,
-          technicalContent: session.content,
-          previousSessions: prior,
-          targetMinutes,
-        });
+        session.conversationPlan = await this.planner.createPlan(
+          {
+            studyPlanContext: { title: plan.title, goal: plan.goal, level: plan.level },
+            topic,
+            technicalContent: session.content,
+            previousSessions: prior,
+            targetMinutes,
+          },
+          session.podcastMode,
+        );
         session.conversationPlanHash = this.hash(session.conversationPlan);
         session.stage = session.lastSuccessfulStage = 'CONVERSATION_PLAN_READY';
         await this.sessions.updateSession(session);
@@ -146,6 +161,7 @@ export class GenerateNextStudySessionUseCase {
         session.rawScript = await this.scriptGenerator.generate({
           technicalContent: session.content,
           conversationPlan: session.conversationPlan,
+          mode: session.podcastMode,
         });
         session.rawScriptHash = this.hash(session.rawScript);
         session.stage = session.lastSuccessfulStage = 'SCRIPT_READY';
@@ -154,7 +170,7 @@ export class GenerateNextStudySessionUseCase {
       if (!session.script) {
         session.stage = 'DIALOGUE_POLISH_PENDING';
         await this.sessions.updateSession(session);
-        session.script = await this.polisher.polish(session.rawScript);
+        session.script = await this.polisher.polish(session.rawScript, session.podcastMode);
         this.validator.validate(session.script, session.conversationPlan, targetMinutes);
         session.polishedScriptHash = this.hash(session.script);
         session.stage = session.lastSuccessfulStage = 'DIALOGUE_READY';
