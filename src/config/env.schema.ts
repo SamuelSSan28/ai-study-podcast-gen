@@ -17,6 +17,14 @@ export const envSchema = z.object({
   KNOWLEDGE_BASE_PATH: z.string().default('./knowledge'),
   AUDIO_STORAGE_PATH: z.string().default('./storage/podcasts'),
   AUDIO_PUBLIC_BASE_URL: z.string().url(),
+  GOOGLE_DRIVE_CLIENT_ID: z.string().min(1),
+  GOOGLE_DRIVE_CLIENT_SECRET: z.string().min(1),
+  GOOGLE_DRIVE_REFRESH_TOKEN: z.string().min(1),
+  GOOGLE_DRIVE_ROOT_FOLDER: z.string().min(1).default('AI Study Podcasts'),
+  GOOGLE_DRIVE_PUBLIC_SHARING: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 export type Environment = z.infer<typeof envSchema>;
 export function validateEnvironment(input: Record<string, unknown>): Environment {

@@ -82,6 +82,8 @@ export interface StudySession {
   script?: ScriptTurn[];
   audioPath?: string;
   audioUrl?: string;
+  audioDownloadUrl?: string;
+  audioExternalId?: string;
   notionPageId?: string;
   notionUrl?: string;
   generationModel?: string;

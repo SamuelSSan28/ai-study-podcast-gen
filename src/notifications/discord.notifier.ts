@@ -9,7 +9,7 @@ export class DiscordNotifier {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        content: `🎧 **New Backend Study Session Ready**\n\n**${session.title}**\nWeek ${String(topic.week).padStart(2, '0')} · Session ${String(topic.sequence).padStart(2, '0')}\n\n📖 Read: ${session.notionUrl}\n🎙 Podcast: ${session.audioUrl}\n\nFocus: ${topic.tags.join(' · ')}`,
+        content: `🎧 **New Backend Study Session Ready**\n\n**${session.title}**\nWeek ${String(topic.week).padStart(2, '0')} · Session ${String(topic.sequence).padStart(2, '0')}\n\n📖 Read: ${session.notionUrl}\n🎙 Listen: ${session.audioUrl}${session.audioDownloadUrl ? `\n⬇️ Download: ${session.audioDownloadUrl}` : ''}\n\nFocus: ${topic.tags.join(' · ')}`,
       }),
     });
     if (!response.ok) throw new Error(`Discord webhook returned ${response.status}`);

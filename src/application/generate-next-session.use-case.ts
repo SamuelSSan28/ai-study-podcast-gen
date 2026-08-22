@@ -8,8 +8,10 @@ import {
   StudySessionRepository,
   StudyTopicRepository,
   TOPIC_REPOSITORY,
+  AUDIO_STORAGE,
+  AudioStorage,
 } from './ports';
-import { StudyPlanTopic, StudySession } from '../domain/models';
+import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
 import { selectNextTopic } from '../domain/next-topic-policy';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -26,6 +28,7 @@ export class GenerateNextStudySessionUseCase {
     private readonly ai: OpenAiGateway,
     private readonly knowledge: KnowledgeBaseService,
     private readonly audio: LocalAudioService,
+    @Inject(AUDIO_STORAGE) private readonly audioStorage: AudioStorage,
     private readonly notifier: DiscordNotifier,
     private readonly models: AiModelConfig,
     private readonly config: ConfigService,
@@ -66,7 +69,7 @@ export class GenerateNextStudySessionUseCase {
       podcastPromptVersion: PROMPT_VERSIONS.script,
     };
     await this.sessions.createSession(session);
-    return this.runRemainingStages(session, topic);
+    return this.runRemainingStages(session, topic, plan);
   }
   async retry(sessionId: string): Promise<StudySession> {
     const session = await this.sessions.findSessionById(sessionId);
@@ -74,13 +77,16 @@ export class GenerateNextStudySessionUseCase {
     if (session.stage !== 'FAILED' && session.notificationStatus !== 'FAILED') return session;
     const topic = await this.topics.findTopicById(session.topicId);
     if (!topic) throw new Error('Session topic not found');
+    const plan = await this.plans.findById(session.studyPlanId);
+    if (!plan) throw new Error('Session study plan not found');
     session.failureMessage = undefined;
     topic.status = 'GENERATING';
-    return this.runRemainingStages(session, topic);
+    return this.runRemainingStages(session, topic, plan);
   }
   private async runRemainingStages(
     session: StudySession,
     topic: StudyPlanTopic,
+    plan: StudyPlan,
   ): Promise<StudySession> {
     try {
       if (!session.content) {
@@ -102,7 +108,18 @@ export class GenerateNextStudySessionUseCase {
         const destination = this.audio.destination(session.id);
         await this.ai.generateSpeech(session.script, destination);
         session.audioPath = destination;
-        session.audioUrl = this.audio.publicUrl(session.id);
+        const artifact = await this.audioStorage.upload({
+          filePath: destination,
+          filename: `${topic.slug}.mp3`,
+          folderPath: [
+            this.config.get<string>('GOOGLE_DRIVE_ROOT_FOLDER', 'AI Study Podcasts'),
+            plan.title,
+            `Week ${String(topic.week).padStart(2, '0')}`,
+          ],
+        });
+        session.audioExternalId = artifact.externalId;
+        session.audioUrl = artifact.listenUrl;
+        session.audioDownloadUrl = artifact.downloadUrl;
         session.stage = session.lastSuccessfulStage = 'AUDIO_READY';
         await this.sessions.updateSession(session);
       }
