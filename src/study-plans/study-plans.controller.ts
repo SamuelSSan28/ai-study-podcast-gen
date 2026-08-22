@@ -1,5 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { GenerationTokenGuard } from '../common/auth/generation-token.guard';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { GenerateStudyPlanUseCase } from '../application/generate-study-plan.use-case';
 import { GenerateNextStudySessionUseCase } from '../application/generate-next-session.use-case';
 import { Inject } from '@nestjs/common';
@@ -18,7 +17,7 @@ export class StudyPlansController {
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
   ) {}
-  @Post('generate') @UseGuards(GenerationTokenGuard) create(@Body() dto: GenerateStudyPlanDto) {
+  @Post('generate') create(@Body() dto: GenerateStudyPlanDto) {
     return this.generatePlan.execute(dto);
   }
   @Get() findAll() {
@@ -27,7 +26,7 @@ export class StudyPlansController {
   @Get(':id') findOne(@Param('id') id: string) {
     return this.plans.findById(id);
   }
-  @Post(':id/generate-next') @UseGuards(GenerationTokenGuard) next(@Param('id') id: string) {
+  @Post(':id/generate-next') next(@Param('id') id: string) {
     return this.generateNext.execute(id);
   }
   @Get(':id/sessions') findSessions(@Param('id') id: string) {

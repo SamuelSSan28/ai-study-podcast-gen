@@ -1,19 +1,20 @@
 # API Reference
 
-The API is available at `http://localhost:3000` by default. Routes that start or retry a generation require `?token=<STUDY_PLAN_CREATE_TOKEN>`.
+The API is available at `http://localhost:3000` by default. Every route requires
+`?token=<STUDY_PLAN_CREATE_TOKEN>`.
 
 ## Endpoints
 
 | Method | Route | Description |
 | --- | --- | --- |
 | `POST` | `/study-plans/generate?token=...` | Create a roadmap |
-| `GET` | `/study-plans` | List roadmaps |
-| `GET` | `/study-plans/:id` | Get a roadmap |
+| `GET` | `/study-plans?token=...` | List roadmaps |
+| `GET` | `/study-plans/:id?token=...` | Get a roadmap |
 | `POST` | `/study-plans/:id/generate-next?token=...` | Generate the next session |
-| `GET` | `/study-plans/:id/sessions` | List sessions for a roadmap |
-| `GET` | `/sessions/:id` | Get a session |
+| `GET` | `/study-plans/:id/sessions?token=...` | List sessions for a roadmap |
+| `GET` | `/sessions/:id?token=...` | Get a session |
 | `POST` | `/sessions/:id/retry?token=...` | Resume a failed generation |
-| `GET` | `/audio/:sessionId` | Stream a generated MP3 |
+| `GET` | `/audio/:sessionId?token=...` | Stream a generated MP3 |
 
 ## Create a roadmap
 
