@@ -8,6 +8,7 @@ import {
 export const PLAN_REPOSITORY = Symbol('PLAN_REPOSITORY');
 export const TOPIC_REPOSITORY = Symbol('TOPIC_REPOSITORY');
 export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
+export const AUDIO_STORAGE = Symbol('AUDIO_STORAGE');
 export interface StudyPlanRepository {
   create(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<StudyPlan>;
   findAll(): Promise<StudyPlan[]>;
@@ -44,6 +45,17 @@ export interface AiGateway {
     minutes: number,
   ): Promise<ScriptTurn[]>;
   generateSpeech(turns: ScriptTurn[], destination: string): Promise<void>;
+}
+export interface AudioStorage {
+  upload(input: {
+    filePath: string;
+    filename: string;
+    folderPath: string[];
+  }): Promise<{
+    externalId: string;
+    listenUrl: string;
+    downloadUrl?: string;
+  }>;
 }
 export interface PlanGenerationInput {
   title: string;

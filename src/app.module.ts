@@ -16,6 +16,8 @@ import { DiscordNotifier } from './notifications/discord.notifier';
 import { StudyPlansController } from './study-plans/study-plans.controller';
 import { StudySessionsController } from './study-sessions/study-sessions.controller';
 import { PodcastScheduler } from './scheduler/podcast.scheduler';
+import { GoogleDriveAudioStorage } from './audio/google-drive-audio.storage';
+import { AUDIO_STORAGE } from './application/ports';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
@@ -27,6 +29,8 @@ import { PodcastScheduler } from './scheduler/podcast.scheduler';
     GenerationTokenGuard,
     KnowledgeBaseService,
     LocalAudioService,
+    GoogleDriveAudioStorage,
+    { provide: AUDIO_STORAGE, useExisting: GoogleDriveAudioStorage },
     OpenAiGateway,
     NotionRepository,
     { provide: PLAN_REPOSITORY, useExisting: NotionRepository },
