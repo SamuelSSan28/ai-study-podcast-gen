@@ -18,6 +18,13 @@ import { StudySessionsController } from './study-sessions/study-sessions.control
 import { PodcastScheduler } from './scheduler/podcast.scheduler';
 import { GoogleDriveAudioStorage } from './audio/google-drive-audio.storage';
 import { AUDIO_STORAGE } from './application/ports';
+import { OpenAiConversationPlanner } from './conversation/conversation-planner';
+import { OpenAiPodcastScriptGenerator } from './conversation/podcast-script-generator';
+import { OpenAiDialoguePolisher } from './conversation/dialogue-polisher';
+import { PodcastScriptValidator } from './conversation/podcast-script.validator';
+import { ConfigurableAudioDirector } from './audio/audio-director';
+import { TurnBasedTtsService } from './audio/turn-based-tts.service';
+import { FfmpegAudioComposer } from './audio/audio-composer';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
@@ -32,6 +39,13 @@ import { AUDIO_STORAGE } from './application/ports';
     GoogleDriveAudioStorage,
     { provide: AUDIO_STORAGE, useExisting: GoogleDriveAudioStorage },
     OpenAiGateway,
+    OpenAiConversationPlanner,
+    OpenAiPodcastScriptGenerator,
+    OpenAiDialoguePolisher,
+    PodcastScriptValidator,
+    ConfigurableAudioDirector,
+    TurnBasedTtsService,
+    FfmpegAudioComposer,
     NotionRepository,
     { provide: PLAN_REPOSITORY, useExisting: NotionRepository },
     { provide: TOPIC_REPOSITORY, useExisting: NotionRepository },

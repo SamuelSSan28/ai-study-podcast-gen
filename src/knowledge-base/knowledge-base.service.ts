@@ -33,7 +33,7 @@ export class KnowledgeBaseService {
   private async discover(root: string): Promise<KnowledgeDocument[]> {
     const result: KnowledgeDocument[] = [];
     const walk = async (directory: string): Promise<void> => {
-      let entries: Awaited<ReturnType<typeof fs.readdir>>;
+      let entries: import('node:fs').Dirent[];
       try {
         entries = await fs.readdir(directory, { withFileTypes: true });
       } catch (error) {
