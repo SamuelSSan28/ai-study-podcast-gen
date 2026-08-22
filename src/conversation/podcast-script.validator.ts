@@ -7,7 +7,9 @@ export class PodcastScriptValidator {
   validate(script: PodcastScript, plan: ConversationPlan, targetMinutes: number): void {
     const errors: string[] = [];
     const speakers = new Set(script.turns.map((turn) => turn.speaker));
-    for (const required of ['INTERVIEWER', 'CANDIDATE'])
+    const requiredSpeakers =
+      plan.mode === 'INTERVIEW' ? ['INTERVIEWER', 'CANDIDATE'] : ['ENGINEER_A', 'ENGINEER_B'];
+    for (const required of requiredSpeakers)
       if (!speakers.has(required as never)) errors.push(`Missing required speaker ${required}`);
     if (script.turns.some((turn) => !turn.text.trim())) errors.push('Empty turn');
     if (script.turns.some((turn, index) => turn.sequence !== index))
@@ -25,8 +27,12 @@ export class PodcastScriptValidator {
     if (plan.incident && !represented.has(plan.incident.sectionId))
       errors.push(`Missing incident section ${plan.incident.sectionId}`);
     const dialogue = script.turns.map((turn) => turn.text.toLowerCase()).join(' ');
-    for (const section of plan.sections)
-      for (const constraint of section.constraintsToReveal) {
+    for (const section of plan.sections) {
+      const constraints =
+        plan.mode === 'INTERVIEW'
+          ? (section as Extract<typeof section, { initialQuestion: string }>).constraintsToReveal
+          : (section as Extract<typeof section, { entryPoint: string }>).scenarioReveals;
+      for (const constraint of constraints) {
         const keywords =
           constraint.reveal
             .toLowerCase()
@@ -35,6 +41,7 @@ export class PodcastScriptValidator {
         if (keywords.length && !keywords.some((word) => dialogue.includes(word)))
           errors.push(`Constraint reveal missing from ${section.id}`);
       }
+    }
     const targetSeconds = targetMinutes * 60;
     if (
       script.estimatedDurationSeconds < targetSeconds * 0.7 ||

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseEnumPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { GenerationTokenGuard } from '../common/auth/generation-token.guard';
 import { GenerateStudyPlanUseCase } from '../application/generate-study-plan.use-case';
 import { GenerateNextStudySessionUseCase } from '../application/generate-next-session.use-case';
@@ -10,6 +19,11 @@ import {
   StudySessionRepository,
 } from '../application/ports';
 import { GenerateStudyPlanDto } from './dto';
+import { PodcastMode } from '../domain/models';
+enum PodcastModeParam {
+  INTERVIEW = 'INTERVIEW',
+  DISCUSSION = 'DISCUSSION',
+}
 @Controller('study-plans')
 export class StudyPlansController {
   constructor(
@@ -27,8 +41,11 @@ export class StudyPlansController {
   @Get(':id') findOne(@Param('id') id: string) {
     return this.plans.findById(id);
   }
-  @Post(':id/generate-next') @UseGuards(GenerationTokenGuard) next(@Param('id') id: string) {
-    return this.generateNext.execute(id);
+  @Post(':id/generate-next') @UseGuards(GenerationTokenGuard) next(
+    @Param('id') id: string,
+    @Query('mode', new ParseEnumPipe(PodcastModeParam, { optional: true })) mode?: PodcastMode,
+  ) {
+    return this.generateNext.execute(id, mode);
   }
   @Get(':id/sessions') findSessions(@Param('id') id: string) {
     return this.sessions.findByPlan(id);
