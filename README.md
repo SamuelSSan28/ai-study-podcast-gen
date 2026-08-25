@@ -2,7 +2,7 @@
 
 A project that turns real-world software scenarios into technical learning paths and AI-generated podcast episodes.
 
-The goal is to study the engineering decisions behind concrete use cases: how a technology or architecture works, which trade-offs it introduces, and when it is—or is not—a good fit. The application organizes those questions into a progressive roadmap, enriches each topic with local notes, and produces conversational episodes that connect theory to project constraints.
+The goal is to study the engineering decisions behind concrete use cases: how a technology or architecture works, which trade-offs it introduces, and when it is—or is not—a good fit. The application organizes those questions into a progressive roadmap, researches each topic from current web sources, and produces conversational episodes that connect theory to project constraints.
 
 ## How it works
 
@@ -10,7 +10,7 @@ The goal is to study the engineering decisions behind concrete use cases: how a 
 2. OpenAI creates a progressive 18-session roadmap, from foundations to applied work, using centralized Monday/Wednesday/Friday and 45-minute defaults.
 3. The roadmap and session state are stored in Notion.
 4. The first topic is generated immediately. Thereafter, checking `Studied` in Notion completes it and pre-generates the next scheduled topic.
-5. Files under `knowledge/` provide additional context.
+5. OpenAI web search builds a current factual foundation from real, authoritative sources.
 6. The application generates use-case-driven technical content, a conversational script, and audio in recoverable stages. Each episode can be a peer `DISCUSSION` or an `INTERVIEW` simulation while sharing the same content and audio pipeline.
 7. The episode becomes available through the API and is announced on Discord.
 
@@ -34,7 +34,6 @@ src/
 ├── application/       # use cases and persistence contracts
 ├── audio/             # local MP3 storage and delivery
 ├── domain/            # models, topic selection, and duplicate prevention
-├── knowledge-base/    # local context discovery and retrieval
 ├── persistence/       # Notion repository implementation
 ├── scheduler/         # cron-based automatic generation
 ├── study-plans/       # roadmap API
@@ -63,12 +62,6 @@ cp .env.example .env
 
 Fill in `.env`. In Notion, share an empty page with your integration and set its ID as `NOTION_PARENT_PAGE_ID`. On startup, the application creates or updates the required roadmap and session databases under that page.
 
-Add personal `.md` or `.txt` sources under `knowledge/`. Tags can be declared on the first line:
-
-```md
-tags: kafka, distributed-systems
-```
-
 Start the development server:
 
 ```bash
@@ -87,9 +80,8 @@ docker compose up --build
 ```
 
 Compose loads the application variables from `.env`, publishes the configured
-`PORT` (or `3000` when it is omitted), mounts `knowledge/` read-only, and keeps
-generated audio in the persistent `podcast-audio` volume. FFmpeg is included in
-the application image.
+`PORT` (or `3000` when it is omitted), and keeps generated audio in the persistent
+`podcast-audio` volume. FFmpeg is included in the application image.
 
 Stop the application with `docker compose down`. To also delete the generated
 audio volume, use `docker compose down --volumes`.

@@ -8,7 +8,7 @@ The application is a **modular monolith** built with Node.js, NestJS, and TypeSc
 
 ### MVP decisions
 
-- Notion is the system of record for plan, topic, session, generation, and notification metadata. The local filesystem stores source knowledge and generated audio bytes.
+- Notion is the system of record for plan, topic, session, generation, and notification metadata. The local filesystem stores generated audio bytes; current technical facts come from OpenAI web search.
 - The roadmap, rather than a fresh random AI suggestion, determines the next session. AI can refine the scenario while preserving its learning objective and prerequisites.
 - Two Notion databases provide queryable records. Nested child pages provide readable navigation.
 - Structured OpenAI Responses outputs are validated again locally with Zod. Invalid outputs are rejected rather than loosely parsed.
@@ -76,10 +76,6 @@ src/
     generators/
     schemas/
     prompts/*.prompt.ts
-  knowledge-base/
-    knowledge-base.module.ts
-    knowledge-base.service.ts
-    parsers/ source-catalog.ts
   audio/
     audio.module.ts
     openai-audio.generator.ts
@@ -92,12 +88,10 @@ src/
     discord.module.ts discord.notifier.ts
   scheduler/
     scheduler.module.ts podcast.scheduler.ts
-knowledge/
-  backend/ profile/ references/
 storage/podcasts/                 # ignored; persistent volume in deployment
 ```
 
-`StudyPlansModule` and `StudySessionsModule` expose HTTP transport. Application use cases are the transaction/workflow boundary. `AiModule`, `NotionModule`, `AudioModule`, `KnowledgeBaseModule`, and `DiscordModule` are adapter/capability modules. The scheduler is deliberately thin: it finds active plans due for the current slot and invokes `GenerateNextStudySessionUseCase`.
+`StudyPlansModule` and `StudySessionsModule` expose HTTP transport. Application use cases are the transaction/workflow boundary. `AiModule`, `NotionModule`, `AudioModule`, and `DiscordModule` are adapter/capability modules. The scheduler is deliberately thin: it finds active plans due for the current slot and invokes `GenerateNextStudySessionUseCase`.
 
 Use injection tokens such as `STUDY_PLAN_REPOSITORY`, `STUDY_SESSION_REPOSITORY`, `STUDY_CONTENT_GENERATOR`, `AUDIO_STORAGE`, and `SESSION_NOTIFIER`. Interfaces live in the application layer; implementations live in infrastructure modules.
 
@@ -189,7 +183,7 @@ interface StudySession {
   sequenceInWeek: number;
   scenarioSummary: string;
   coveredConcepts: string[];
-  knowledgeSources: KnowledgeSourceRef[];
+  researchSources: TopicResearchSource[];
   content?: StudyContent;
   interviewScript?: InterviewScript;
   audio?: AudioArtifact;
@@ -255,7 +249,7 @@ interface StudySessionRepository {
 
 Separate query ports can be added if API read requirements diverge. Notion implementations translate SDK pagination, property names, rich-text limits, and blocks through dedicated mappers. Domain code receives no SDK response objects.
 
-AI ports are operation-specific (`StudyPlanGenerator`, `StudyContentGenerator`, `TopicDuplicateValidator`, `PodcastScriptGenerator`), preventing a generic “ask AI” service from leaking prompts into business logic. `KnowledgeRetriever`, `AudioGenerator`, `AudioStorage`, `AudioComposer`, and `SessionNotifier` complete the external ports.
+AI ports are operation-specific (`StudyPlanGenerator`, `StudyContentGenerator`, `TopicDuplicateValidator`, `PodcastScriptGenerator`), preventing a generic “ask AI” service from leaking prompts into business logic. `WebResearcher`, `AudioGenerator`, `AudioStorage`, `AudioComposer`, and `SessionNotifier` complete the external ports.
 
 ## 6. Notion information architecture
 
@@ -284,7 +278,7 @@ Episode page block order:
 13. Full Study Content
 14. Podcast Interview Script
 15. Audio (public hyperlink; Notion external file/embed only if supported and stable)
-16. Generation Metadata and cited knowledge-source paths
+16. Generation Metadata and cited web-research sources
 
 Notion has property/block size and request limits. Render long content into bounded rich-text block chunks, batch append operations, paginate all queries, and use bounded rate-limit retries. The repository verifies configured database properties on startup or via a setup command and fails fast with actionable schema differences.
 
@@ -313,10 +307,10 @@ STUDY_PLAN_CREATE_TOKEN=
 GENERATION_API_TOKEN=                 # may initially equal create token
 
 OPENAI_API_KEY=
-OPENAI_CONTENT_MODEL=gpt-5.6-luna
-OPENAI_PLANNING_MODEL=gpt-5.6-luna
-OPENAI_VALIDATION_MODEL=gpt-5.6-luna
-OPENAI_PODCAST_MODEL=gpt-5.6-luna
+OPENAI_CONTENT_MODEL=gpt-5.5
+OPENAI_PLANNING_MODEL=gpt-5.5
+OPENAI_VALIDATION_MODEL=gpt-5.5
+OPENAI_SCRIPT_MODEL=gpt-5.5
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 
 NOTION_API_KEY=
@@ -329,7 +323,6 @@ PODCAST_TIMEZONE=America/Sao_Paulo
 PODCAST_TARGET_MINUTES=30
 SESSION_CLAIM_TTL_MINUTES=120
 
-KNOWLEDGE_BASE_PATH=./knowledge
 AUDIO_STORAGE_PATH=./storage/podcasts
 AUDIO_PUBLIC_BASE_URL=https://example.com/audio
 AUDIO_DOWNLOAD_TOKEN=                # optional MVP protection
@@ -337,19 +330,11 @@ AUDIO_DOWNLOAD_TOKEN=                # optional MVP protection
 
 Secrets are redacted centrally; configuration objects, request query strings, webhook URLs, and OpenAI/Notion headers must never be logged. Production should inject secrets through the deployment platform rather than an `.env` file.
 
-## 8. Knowledge base design
+## 8. Current web research
 
-`KnowledgeBaseService` discovers files under a configured root, rejects symlinks/path traversal, allows only registered parsers (`.md` and `.txt` initially), enforces per-file and total-context byte limits, normalizes encoding/newlines/whitespace, and returns source IDs, paths, hashes, tags, and text. A parser registry permits PDF support later without changing retrieval callers.
+Before technical content is generated, the content model must use the Responses API web-search tool. Research prioritizes official documentation, standards, original papers, books, and first-party engineering publications. The structured result stores a concise summary, key concepts, and the canonical title, URL, publisher, and type of every source.
 
-### Simple MVP retrieval
-
-- Add optional YAML front matter: `title`, `tags`, `scope` (`profile`, `backend`, `reference`), and `priority`. A sidecar catalog can override tags where front matter is undesirable.
-- Planning loads the small profile and goals sources, selected high-level references, and a catalog containing titles/tags/summaries—not every full backend file.
-- Session generation builds query tags from the planned topic, scenario, learning objectives, and prerequisites. Rank files deterministically by exact normalized tag overlap, scope boost, configured priority, and filename/category match.
-- Include the top files until a character/token budget is reached. Always include the relevant profile/goals summary, and record selected source hashes in the session for reproducibility.
-- If no relevant source matches, generate from general model knowledge but record that no local source was used. Malformed/oversized files are skipped with a warning unless a required profile file is affected.
-
-This approach is transparent and testable. Later, split sources into heading-aware chunks, create embeddings on content-hash changes, store an index behind the same `KnowledgeRetriever` port, and use hybrid semantic plus tag ranking. A vector database is warranted only when corpus size/recall measurements demonstrate the need.
+Web search is required for the research operation. Returned sources must come from the tool results and directly support the research; the model must not guess or reconstruct URLs from memory. The same persisted research object is the factual foundation for both the article and podcast so retries remain reproducible.
 
 ## 9. Plan generation
 
@@ -360,9 +345,8 @@ This approach is transparent and testable. Later, split sources into heading-awa
 ### Flow
 
 1. Validate DTO bounds and calculate dates/session count.
-2. Read the planning subset of the knowledge catalog.
-3. Build prompt version `study-plan.v1`, requiring scenario-led projects, prerequisites, learning objectives, tags, depth delta, and a foundational-to-advanced narrative.
-4. Call the Responses API with Structured Outputs matching a Zod-derived JSON schema.
+2. Build prompt version `study-plan.v1`, requiring scenario-led projects, prerequisites, learning objectives, tags, depth delta, and a foundational-to-advanced narrative.
+3. Call the Responses API with Structured Outputs matching a Zod-derived JSON schema.
 5. Locally validate count, unique sequences/slugs, preferred-day consistency, prerequisites, coherent difficulty progression, concrete production scenarios, and English output.
 6. Permit at most a small bounded corrective regeneration (for example two attempts), supplying validation issues. Never loop indefinitely.
 7. Create application IDs and persist plan/topics through an orchestration repository method. Because Notion lacks transactions, use a `DRAFT` plan, create topics/pages idempotently, then activate only after verification; a cleanup/resume operation repairs incomplete drafts.
@@ -396,14 +380,14 @@ The selector loads planned topics in absolute sequence and concise history field
 
 1. Calculate deterministic `generationKey = planId:topicId` (and record scheduled local date/slot separately).
 2. Return the existing session if that key is completed or in progress; otherwise claim the topic and create a `CLAIMED` session before expensive calls.
-3. Select relevant knowledge; checkpoint source references as `KNOWLEDGE_READY`.
+3. Run required web research and checkpoint its structured sources.
 4. Generate and Zod-validate structured technical content in English; render and checkpoint the draft in Notion as `CONTENT_READY`.
 5. Generate the interview script separately; validate speakers, self-contained language, duration/word target, forbidden meta-phrases, turn lengths, and topic coverage; checkpoint `SCRIPT_READY`.
 6. Mark `AUDIO_GENERATING`, synthesize resumable segments to temporary keys, compose and atomically publish the final audio, then checkpoint `AUDIO_READY`.
 7. Render/update all final Notion sections and audio link idempotently; checkpoint `NOTION_FINALIZED`.
 8. Mark session/topic `COMPLETED`/`READY`, then set notification `PENDING` and send Discord. Mark `SENT` on success or `FAILED` on exhausted notification retries without changing session completion.
 
-Every stage first checks whether its output already exists and is valid. Each checkpoint stores `lastSuccessfulStage`, attempt count, prompt/model versions, source hashes, and artifact checksum. Writes use stable block markers or replace a known section so retrying does not append duplicate page sections. Failures store a safe code/message and the failed stage.
+Every stage first checks whether its output already exists and is valid. Each checkpoint stores `lastSuccessfulStage`, attempt count, prompt/model versions, research sources, and artifact checksum. Writes use stable block markers or replace a known section so retrying does not append duplicate page sections. Failures store a safe code/message and the failed stage.
 
 ### Content and script prompt contracts
 
@@ -466,7 +450,7 @@ Return DTOs, not domain objects or Notion records. Use `202 Accepted` for a manu
 Classify errors centrally:
 
 - **Retryable infrastructure:** OpenAI 429/5xx/timeouts, Notion 429/5xx, Discord 429/5xx, transient filesystem/process errors. Use exponential backoff with jitter, service-aware `Retry-After`, strict attempt caps, and per-call timeouts.
-- **Non-retryable input/semantic:** DTO errors, Structured Output schema violation after bounded repair, duplicate classification, invalid state transition, unsupported/malformed required knowledge source. Persist a clear operator-facing code.
+- **Non-retryable input/semantic:** DTO errors, Structured Output schema violation after bounded repair, duplicate classification, invalid state transition, missing or invalid required web-research source. Persist a clear operator-facing code.
 - **Stage failure:** content/script/audio failures leave prior checkpoints intact. Audio retries resume missing segments. Notion finalization retries do not regenerate AI artifacts.
 - **Notification failure:** retry independently (for example three immediate bounded attempts, then on later scheduler reconciliation); session remains completed.
 
@@ -514,7 +498,7 @@ Add liveness plus readiness checks for configuration, writable audio directory, 
 - Unicode title normalization, slug stability, tag overlap, depth-delta rules, and all duplicate outcomes.
 - Plan counts, week/sequence ordering, prerequisite/progression validation, and date/timezone slot calculation.
 - State-machine allowed/forbidden transitions, failure overlay, checkpoint idempotency, and retry resume point.
-- Knowledge discovery allowlist, traversal/symlink defense, normalization, deterministic ranking, budgets, and malformed files.
+- Web-research tool requirement, authoritative-source prompt contract, and structured source validation.
 - Prompt snapshots/contracts and Zod schemas; assert model selection is injected, versions are recorded, English/meta-phrase requirements are present.
 - Speaker-turn parsing, sentence/turn-safe chunking at boundaries, voice order, deterministic segment keys, and composer manifests.
 - Notion mappers/block chunking and secret redaction.
@@ -531,7 +515,7 @@ Critical partial failures:
 - Discord fails, session remains completed and notification remains retryable;
 - duplicate validator returns each classification and exhausts alternatives safely;
 - two invocations share a generation key; only the canonical claim proceeds in the fake atomic repository;
-- stale claim recovery, DST boundary, Notion pagination/rate limit, invalid structured response, and oversized source handling.
+- stale claim recovery, DST boundary, Notion pagination/rate limit, invalid structured response, and invalid research-source handling.
 
 Add a small end-to-end smoke test using a temporary filesystem and in-memory/fake adapters. Live OpenAI/Notion/Discord tests are opt-in, tagged, budget-limited, and never required for pull requests.
 
@@ -541,7 +525,7 @@ Each phase should be independently reviewable and leave tests green.
 
 ### Phase 0 — scaffold and architectural guardrails
 
-- Initialize NestJS strict TypeScript, formatting/linting/test tooling, validated configuration, redacting structured logger, health endpoints, `.env.example`, ignored storage, and knowledge examples.
+- Initialize NestJS strict TypeScript, formatting/linting/test tooling, validated configuration, redacting structured logger, health endpoints, `.env.example`, ignored storage.
 - Establish domain/application/infrastructure folders and injection tokens. Add an architecture decision record for Notion-only persistence and single scheduler replica.
 - Exit: app boots with validated config; unit/CI checks run without external credentials.
 
@@ -550,10 +534,10 @@ Each phase should be independently reviewable and leave tests green.
 - Implement entities/value objects, topic normalization, progression rules, stage machine, repository ports, clock/ID abstractions, and in-memory fakes.
 - Exit: exhaustive domain transition/idempotency tests pass.
 
-### Phase 2 — knowledge and prompts
+### Phase 2 — web research and prompts
 
-- Implement safe Markdown/text discovery, metadata catalog, deterministic retrieval, schemas, typed/versioned prompt builders, and model routing.
-- Exit: retrieval fixtures and prompt/schema tests demonstrate bounded relevant context.
+- Implement required web search, structured research sources, typed/versioned prompt builders, schemas, and model routing.
+- Exit: tool-call tests and prompt/schema tests demonstrate current, source-backed research.
 
 ### Phase 3 — study-plan generation
 
@@ -603,4 +587,4 @@ Each phase should be independently reviewable and leave tests green.
 | AI repetition/hallucination | roadmap, three-layer duplicate check, schemas, source refs, bounded repair | corpus growth -> hybrid semantic retrieval/evaluation suite |
 | Query-string secret leakage | isolated guard, no query logging, HTTPS, rotation | next auth iteration -> header/API key or identity provider |
 
-This plan keeps the first build small enough to operate personally while preserving the seams—repositories, operation-specific AI ports, generation leases, knowledge retrieval, audio storage, and notifications—needed to replace MVP infrastructure without rewriting the domain workflow.
+This plan keeps the first build small enough to operate personally while preserving the seams—repositories, operation-specific AI ports, generation leases, web research, audio storage, and notifications—needed to replace MVP infrastructure without rewriting the domain workflow.
