@@ -35,10 +35,10 @@ export class OpenAiGateway implements AiGateway {
   ) {
     this.client = new OpenAI({ apiKey: config.getOrThrow<string>('OPENAI_API_KEY') });
   }
-  async generatePlan(input: PlanGenerationInput, context: string): Promise<GeneratedPlan> {
+  async generatePlan(input: PlanGenerationInput): Promise<GeneratedPlan> {
     return this.json(
       this.models.planning,
-      buildPlanPrompt(input, context),
+      buildPlanPrompt(input),
       'study_plan',
       generatedPlanSchema,
     );
@@ -60,9 +60,9 @@ export class OpenAiGateway implements AiGateway {
       contentSchema,
     );
   }
-  async researchTopic(topic: StudyPlanTopic, context: string): Promise<TopicResearch> {
-    const prompt = `Research the study topic ${JSON.stringify({ title: topic.title, description: topic.description, objectives: topic.learningObjectives })}. Produce a concise factual foundation shared by the article and podcast. Prioritize official documentation, papers, books, and reputable engineering publications. Include only real, canonical source URLs; never invent a source. Local context:\n${context}`;
-    return this.json(this.models.content, prompt, 'topic_research', topicResearchSchema);
+  async researchTopic(topic: StudyPlanTopic): Promise<TopicResearch> {
+    const prompt = `Research the study topic ${JSON.stringify({ title: topic.title, description: topic.description, objectives: topic.learningObjectives })}. Use web search to produce a current, concise factual foundation shared by the article and podcast. Prefer primary and authoritative sources: official documentation, standards, original papers, books, and first-party engineering publications. Every source must have been returned by web search, use its canonical URL, and directly support the research. Do not rely on model memory for facts that may have changed and never invent, guess, or reconstruct a URL.`;
+    return this.json(this.models.content, prompt, 'topic_research', topicResearchSchema, true);
   }
   async createConversationPlan(
     input: CreateConversationPlanInput,
@@ -108,11 +108,18 @@ export class OpenAiGateway implements AiGateway {
     input: string,
     name: string,
     schema: z.ZodType<T>,
+    webSearch = false,
   ): Promise<T> {
     const response = await this.client.responses.parse({
       model,
       input,
       text: { format: zodTextFormat(schema, name) },
+      ...(webSearch
+        ? {
+            tools: [{ type: 'web_search' as const }],
+            tool_choice: 'required' as const,
+          }
+        : {}),
     });
     if (!response.output_parsed) throw new Error(`OpenAI returned no parsed ${name} output`);
     return schema.parse(response.output_parsed);

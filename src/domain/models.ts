@@ -66,7 +66,7 @@ export interface TopicResearch {
   sources: Array<{
     title: string;
     url: string;
-    publisher?: string;
+    publisher: string | null;
     type: 'OFFICIAL_DOCUMENTATION' | 'PAPER' | 'ARTICLE' | 'BOOK' | 'OTHER';
   }>;
 }

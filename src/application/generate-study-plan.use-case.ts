@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { PLAN_REPOSITORY, PlanGenerationInput, StudyPlanRepository } from './ports';
 import { StudyPlan, StudyPlanTopic } from '../domain/models';
 import { topicSlug } from '../domain/topic-normalization';
-import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { STUDY_DEFAULTS, StudyPlanSettings } from '../config/study-defaults';
 import { calculateStudyDates } from '../domain/study-schedule';
@@ -12,7 +11,6 @@ export class GenerateStudyPlanUseCase {
   constructor(
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     private readonly ai: OpenAiGateway,
-    private readonly knowledge: KnowledgeBaseService,
   ) {}
   async execute(input: {
     title: string;
@@ -29,8 +27,7 @@ export class GenerateStudyPlanUseCase {
       preferredDays: [...STUDY_DEFAULTS.schedule.days],
       targetSessionMinutes,
     };
-    const context = await this.knowledge.retrieve(['profile', 'interview', 'architecture'], true);
-    const generated = await this.ai.generatePlan(planningInput, context);
+    const generated = await this.ai.generatePlan(planningInput);
     const expected = planningInput.durationWeeks * planningInput.sessionsPerWeek;
     if (generated.topics.length !== expected)
       throw new Error(`AI returned ${generated.topics.length} topics; expected ${expected}`);

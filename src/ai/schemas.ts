@@ -21,14 +21,16 @@ export const generatedPlanSchema = z.object({
 export const topicResearchSchema = z.object({
   summary: z.string(),
   keyConcepts: z.array(z.string()),
-  sources: z.array(
-    z.object({
-      title: z.string(),
-      url: z.string().url(),
-      publisher: z.string().optional(),
-      type: z.enum(['OFFICIAL_DOCUMENTATION', 'PAPER', 'ARTICLE', 'BOOK', 'OTHER']),
-    }),
-  ),
+  sources: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        url: z.string().url(),
+        publisher: z.string().nullable(),
+        type: z.enum(['OFFICIAL_DOCUMENTATION', 'PAPER', 'ARTICLE', 'BOOK', 'OTHER']),
+      }),
+    )
+    .min(1),
 });
 export const duplicateSchema = z.object({
   classification: z.enum(['NEW', 'RELATED_BUT_DEEPER', 'DUPLICATE']),

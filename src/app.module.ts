@@ -5,7 +5,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { validateEnvironment } from './config/env.schema';
 import { AiModelConfig } from './config/ai-model.config';
 import { GenerationTokenGuard } from './common/auth/generation-token.guard';
-import { KnowledgeBaseService } from './knowledge-base/knowledge-base.service';
 import { LocalAudioService } from './audio/local-audio.service';
 import { AudioController } from './audio/audio.controller';
 import { OpenAiGateway } from './ai/openai.gateway';
@@ -36,7 +35,6 @@ import { ProgressStudyPlanUseCase } from './application/progress-study-plan.use-
   providers: [
     AiModelConfig,
     { provide: APP_GUARD, useClass: GenerationTokenGuard },
-    KnowledgeBaseService,
     LocalAudioService,
     GoogleDriveAudioStorage,
     { provide: AUDIO_STORAGE, useExisting: GoogleDriveAudioStorage },

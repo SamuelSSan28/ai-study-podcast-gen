@@ -14,7 +14,6 @@ import {
 import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
 import { selectNextTopic } from '../domain/next-topic-policy';
 import { OpenAiGateway } from '../ai/openai.gateway';
-import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { LocalAudioService } from '../audio/local-audio.service';
 import { DiscordNotifier } from '../notifications/discord.notifier';
 import { AiModelConfig } from '../config/ai-model.config';
@@ -39,7 +38,6 @@ export class GenerateNextStudySessionUseCase {
     @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
     private readonly ai: OpenAiGateway,
-    private readonly knowledge: KnowledgeBaseService,
     private readonly audio: LocalAudioService,
     @Inject(AUDIO_STORAGE) private readonly audioStorage: AudioStorage,
     private readonly notifier: DiscordNotifier,
@@ -128,11 +126,10 @@ export class GenerateNextStudySessionUseCase {
   ): Promise<StudySession> {
     try {
       if (!session.content) {
-        const context = await this.knowledge.retrieve(topic.tags);
-        session.research ??= await this.ai.researchTopic(topic, context);
+        session.research ??= await this.ai.researchTopic(topic);
         session.content = await this.ai.generateContent(
           topic,
-          `${context}\nSHARED_TOPIC_RESEARCH:${JSON.stringify(session.research)}`,
+          `CURRENT_WEB_RESEARCH:${JSON.stringify(session.research)}`,
         );
         session.stage = session.lastSuccessfulStage = 'CONTENT_READY';
         session.technicalContentHash = this.hash(session.content);

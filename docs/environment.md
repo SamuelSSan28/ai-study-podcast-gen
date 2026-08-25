@@ -17,12 +17,12 @@ documented default when omitted.
 | Variable                         | Required | Default           | Description                                                                       |
 | -------------------------------- | -------- | ----------------- | --------------------------------------------------------------------------------- |
 | `OPENAI_API_KEY`                 | Yes      | —                 | API key used to authenticate requests to OpenAI.                                  |
-| `OPENAI_CONTENT_MODEL`           | No       | `gpt-5.6-luna`    | Model used to generate the technical content for a study session.                 |
-| `OPENAI_PLANNING_MODEL`          | No       | `gpt-5.6-luna`    | Model used to generate study plans.                                               |
-| `OPENAI_VALIDATION_MODEL`        | No       | `gpt-5.6-luna`    | Model used by the podcast-script validation step.                                 |
-| `OPENAI_CONVERSATION_PLAN_MODEL` | No       | `gpt-5.6-luna`    | Model used to plan the turns in a conversation.                                   |
-| `OPENAI_SCRIPT_MODEL`            | No       | `gpt-5.6-luna`    | Model used to turn session content and a conversation plan into a podcast script. |
-| `OPENAI_POLISH_MODEL`            | No       | `gpt-5.6-luna`    | Model used to polish generated dialogue.                                          |
+| `OPENAI_CONTENT_MODEL`           | No       | `gpt-5.5`         | Model used for web research and technical content generation.                     |
+| `OPENAI_PLANNING_MODEL`          | No       | `gpt-5.5`         | Model used to generate study plans.                                               |
+| `OPENAI_VALIDATION_MODEL`        | No       | `gpt-5.5`         | Model used by the podcast-script validation step.                                 |
+| `OPENAI_CONVERSATION_PLAN_MODEL` | No       | `gpt-5.5`         | Model used to plan the turns in a conversation.                                   |
+| `OPENAI_SCRIPT_MODEL`            | No       | `gpt-5.5`         | Model used to turn session content and a conversation plan into a podcast script. |
+| `OPENAI_POLISH_MODEL`            | No       | `gpt-5.5`         | Model used to polish generated dialogue.                                          |
 | `OPENAI_TTS_MODEL`               | No       | `gpt-4o-mini-tts` | Text-to-speech model used to synthesize each dialogue turn.                       |
 
 Model names are passed directly to the OpenAI client. Set them to models available
@@ -66,7 +66,6 @@ interviewer and candidate voices; discussion mode uses the host and engineer voi
 | Variable                | Required | Default              | Description                                                                                                                                |
 | ----------------------- | -------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `FFMPEG_PATH`           | No       | `ffmpeg`             | Path or executable name used to invoke FFmpeg when composing audio.                                                                        |
-| `KNOWLEDGE_BASE_PATH`   | No       | `./knowledge`        | Path to the directory containing local `.md` and `.txt` knowledge sources. Relative paths are resolved from the process working directory. |
 | `AUDIO_STORAGE_PATH`    | No       | `./storage/podcasts` | Local directory used for generated audio and temporary turn files.                                                                         |
 | `AUDIO_PUBLIC_BASE_URL` | Yes      | —                    | Valid base URL used to construct local audio-streaming URLs, for example `http://localhost:3000/audio`.                                    |
 

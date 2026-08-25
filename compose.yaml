@@ -6,12 +6,10 @@ services:
       - .env
     environment:
       FFMPEG_PATH: /usr/bin/ffmpeg
-      KNOWLEDGE_BASE_PATH: /app/knowledge
       AUDIO_STORAGE_PATH: /app/storage/podcasts
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
-      - ./knowledge:/app/knowledge:ro
       - podcast-audio:/app/storage/podcasts
     restart: unless-stopped
 

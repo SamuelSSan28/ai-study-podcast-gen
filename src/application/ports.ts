@@ -52,13 +52,13 @@ export interface GeneratedPlan {
   >;
 }
 export interface AiGateway {
-  generatePlan(input: PlanGenerationInput, context: string): Promise<GeneratedPlan>;
+  generatePlan(input: PlanGenerationInput): Promise<GeneratedPlan>;
   validateDuplicate(
     candidate: StudyPlanTopic,
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'>;
   generateContent(topic: StudyPlanTopic, context: string): Promise<StudyContent>;
-  researchTopic(topic: StudyPlanTopic, context: string): Promise<TopicResearch>;
+  researchTopic(topic: StudyPlanTopic): Promise<TopicResearch>;
   createConversationPlan(
     input: CreateConversationPlanInput,
     mode: PodcastMode,
