@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
 import { validateEnvironment } from './config/env.schema';
 import { AiModelConfig } from './config/ai-model.config';
 import { GenerationTokenGuard } from './common/auth/generation-token.guard';
@@ -33,7 +34,7 @@ import { FfmpegAudioComposer } from './audio/audio-composer';
   controllers: [StudyPlansController, StudySessionsController, AudioController],
   providers: [
     AiModelConfig,
-    GenerationTokenGuard,
+    { provide: APP_GUARD, useClass: GenerationTokenGuard },
     KnowledgeBaseService,
     LocalAudioService,
     GoogleDriveAudioStorage,

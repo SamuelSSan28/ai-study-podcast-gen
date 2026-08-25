@@ -80,6 +80,7 @@ The API is available at `http://localhost:3000` by default.
 ## Documentation
 
 - [API reference and examples](docs/api.md)
+- [Environment variables](docs/environment.md)
 - [Architecture and implementation plan](docs/architecture-and-implementation-plan.md)
 
 ## Scripts
