@@ -2,6 +2,7 @@ services:
   app:
     build:
       context: .
+      target: development
     env_file:
       - .env
     environment:
@@ -10,6 +11,7 @@ services:
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
+      - ./src:/app/src
       - podcast-audio:/app/storage/podcasts
     restart: unless-stopped
 

@@ -81,7 +81,11 @@ docker compose up --build
 
 Compose loads the application variables from `.env`, publishes the configured
 `PORT` (or `3000` when it is omitted), and keeps generated audio in the persistent
-`podcast-audio` volume. FFmpeg is included in the application image.
+`podcast-audio` volume. FFmpeg is included in the application image. The Compose
+service uses the development image, mounts `src/` into the container, and runs
+Nest in watch mode, so saving a source file automatically recompiles and restarts
+the application. Rebuild the image after changing `package.json` or
+`package-lock.json`.
 
 Stop the application with `docker compose down`. To also delete the generated
 audio volume, use `docker compose down --volumes`.
