@@ -1,3 +1,22 @@
+FROM node:22-bookworm-slim AS development
+
+RUN apt-get update \
+  && apt-get install --no-install-recommends --yes ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY src ./src
+
+ENV NODE_ENV=development
+EXPOSE 3000
+
+CMD ["npm", "run", "start:dev"]
+
 FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
