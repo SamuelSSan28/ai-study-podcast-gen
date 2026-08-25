@@ -77,6 +77,23 @@ npm run start:dev
 
 The API is available at `http://localhost:3000` by default.
 
+### Running with Docker Compose
+
+Create and fill in the local environment file before starting the container:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Compose loads the application variables from `.env`, publishes the configured
+`PORT` (or `3000` when it is omitted), mounts `knowledge/` read-only, and keeps
+generated audio in the persistent `podcast-audio` volume. FFmpeg is included in
+the application image.
+
+Stop the application with `docker compose down`. To also delete the generated
+audio volume, use `docker compose down --volumes`.
+
 ## Documentation
 
 - [API reference and examples](docs/api.md)
