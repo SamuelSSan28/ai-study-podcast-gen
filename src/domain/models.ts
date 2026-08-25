@@ -1,6 +1,6 @@
 export type PlanStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type PodcastMode = 'INTERVIEW' | 'DISCUSSION';
-export type TopicStatus = 'PLANNED' | 'GENERATING' | 'READY' | 'FAILED' | 'SKIPPED';
+export type TopicStatus = 'PLANNED' | 'GENERATING' | 'READY' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
 export type SessionStage =
   | 'CONTENT_PENDING'
   | 'CONTENT_READY'
@@ -35,6 +35,8 @@ export interface StudyPlan {
   notionPageId?: string;
   notionUrl?: string;
   createdAt: string;
+  targetSessionMinutes: number;
+  currentTopicId?: string;
 }
 export interface StudyPlanTopic {
   id: string;
@@ -52,6 +54,21 @@ export interface StudyPlanTopic {
   summary: string;
   status: TopicStatus;
   notionPageId?: string;
+  order: number;
+  level: 'FOUNDATION' | 'CORE' | 'INTERMEDIATE' | 'ADVANCED' | 'APPLIED';
+  estimatedMinutes: number;
+  scheduledAt: string;
+  studied: boolean;
+}
+export interface TopicResearch {
+  summary: string;
+  keyConcepts: string[];
+  sources: Array<{
+    title: string;
+    url: string;
+    publisher?: string;
+    type: 'OFFICIAL_DOCUMENTATION' | 'PAPER' | 'ARTICLE' | 'BOOK' | 'OTHER';
+  }>;
 }
 export interface StudyContent {
   overview: string;
@@ -195,6 +212,7 @@ export interface StudySession {
   lastSuccessfulStage: Exclude<SessionStage, 'FAILED'>;
   summary: string;
   content?: StudyContent;
+  research?: TopicResearch;
   conversationPlan?: ConversationPlan;
   rawScript?: RawPodcastScript;
   script?: PodcastScript;

@@ -7,33 +7,31 @@ an HTTP `401 Unauthorized` response.
 
 ## Endpoints
 
-| Method | Route                                                      | Description                 |
-| ------ | ---------------------------------------------------------- | --------------------------- |
-| `POST` | `/study-plans/generate?token=...`                          | Create a roadmap            |
-| `GET`  | `/study-plans?token=...`                                   | List roadmaps               |
-| `GET`  | `/study-plans/:id?token=...`                               | Get a roadmap               |
-| `POST` | `/study-plans/:id/generate-next?token=...&mode=DISCUSSION` | Generate the next session   |
-| `GET`  | `/study-plans/:id/sessions?token=...`                      | List sessions for a roadmap |
-| `GET`  | `/sessions/:id?token=...`                                  | Get a session               |
-| `POST` | `/sessions/:id/retry?token=...`                            | Resume a failed generation  |
-| `GET`  | `/audio/:sessionId?token=...`                              | Stream a generated MP3      |
+| Method | Route                                                      | Description                    |
+| ------ | ---------------------------------------------------------- | ------------------------------ |
+| `POST` | `/study-plans?token=...`                                   | Create an automatic curriculum |
+| `GET`  | `/study-plans?token=...`                                   | List roadmaps                  |
+| `GET`  | `/study-plans/:id?token=...`                               | Get a roadmap                  |
+| `POST` | `/study-plans/:id/generate-next?token=...&mode=DISCUSSION` | Generate the next session      |
+| `GET`  | `/study-plans/:id/sessions?token=...`                      | List sessions for a roadmap    |
+| `GET`  | `/sessions/:id?token=...`                                  | Get a session                  |
+| `POST` | `/sessions/:id/retry?token=...`                            | Resume a failed generation     |
+| `GET`  | `/audio/:sessionId?token=...`                              | Stream a generated MP3         |
 
 ## Create a roadmap
 
 ```bash
-curl -X POST 'http://localhost:3000/study-plans/generate?token=change-me' \
+curl -X POST 'http://localhost:3000/study-plans?token=change-me' \
   -H 'Content-Type: application/json' \
   -d '{
-    "title": "Event-driven order processing",
-    "durationWeeks": 8,
-    "sessionsPerWeek": 2,
-    "level": "senior",
-    "goal": "Understand when Kafka is a good fit for order processing, its trade-offs, and simpler alternatives",
-    "preferredDays": ["TUESDAY", "FRIDAY"]
+    "title": "Event-Driven Architecture",
+    "goal": "Design and discuss production event-driven architectures in senior engineering interviews"
   }'
 ```
 
-`preferredDays` accepts `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY`, `FRIDAY`, `SATURDAY`, and `SUNDAY`. An optional `startDate` string can also be provided.
+The service creates an 18-session progressive curriculum, schedules it for Monday,
+Wednesday, and Friday, and generates only its first topic. An optional
+`settings.targetSessionMinutes` value between 30 and 60 overrides the 45-minute default.
 
 ## Generate the next episode
 

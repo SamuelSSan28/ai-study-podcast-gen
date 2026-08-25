@@ -18,6 +18,11 @@ const input = {
     depthDelta: 'Backpressure',
     summary: 'Backpressure strategies',
     status: 'PLANNED',
+    order: 1,
+    level: 'ADVANCED',
+    estimatedMinutes: 45,
+    scheduledAt: '2026-08-26T12:00:00.000Z',
+    studied: false,
   },
   technicalContent: {
     overview: 'Overview',

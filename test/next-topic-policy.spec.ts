@@ -17,6 +17,11 @@ function topic(overrides: Partial<StudyPlanTopic> = {}): StudyPlanTopic {
     depthDelta: 'Introduces the foundation',
     summary: 'Kafka fundamentals',
     status: 'PLANNED',
+    order: 1,
+    level: 'FOUNDATION',
+    estimatedMinutes: 45,
+    scheduledAt: '2026-08-26T12:00:00.000Z',
+    studied: false,
     ...overrides,
   };
 }

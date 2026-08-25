@@ -8,11 +8,25 @@ export const generatedPlanSchema = z.object({
       week: z.number().int(),
       sequence: z.number().int(),
       difficulty: z.enum(['FOUNDATIONAL', 'INTERMEDIATE', 'ADVANCED']),
+      level: z.enum(['FOUNDATION', 'CORE', 'INTERMEDIATE', 'ADVANCED', 'APPLIED']),
+      estimatedMinutes: z.number().int().min(30).max(60),
       tags: z.array(z.string()),
       learningObjectives: z.array(z.string()),
       prerequisites: z.array(z.string()),
       depthDelta: z.string(),
       summary: z.string(),
+    }),
+  ),
+});
+export const topicResearchSchema = z.object({
+  summary: z.string(),
+  keyConcepts: z.array(z.string()),
+  sources: z.array(
+    z.object({
+      title: z.string(),
+      url: z.string().url(),
+      publisher: z.string().optional(),
+      type: z.enum(['OFFICIAL_DOCUMENTATION', 'PAPER', 'ARTICLE', 'BOOK', 'OTHER']),
     }),
   ),
 });

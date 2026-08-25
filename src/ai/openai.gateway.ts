@@ -12,12 +12,18 @@ import {
   RawPodcastScript,
   StudyContent,
   StudyPlanTopic,
+  TopicResearch,
 } from '../domain/models';
 import { AiModelConfig } from '../config/ai-model.config';
 import { LocalAudioService } from '../audio/local-audio.service';
 import { buildContentPrompt, buildPlanPrompt } from './prompts/prompts';
 import { resolvePrompt } from './prompts/prompt.factory';
-import { contentSchema, duplicateSchema, generatedPlanSchema } from './schemas';
+import {
+  contentSchema,
+  duplicateSchema,
+  generatedPlanSchema,
+  topicResearchSchema,
+} from './schemas';
 
 @Injectable()
 export class OpenAiGateway implements AiGateway {
@@ -53,6 +59,10 @@ export class OpenAiGateway implements AiGateway {
       'study_content',
       contentSchema,
     );
+  }
+  async researchTopic(topic: StudyPlanTopic, context: string): Promise<TopicResearch> {
+    const prompt = `Research the study topic ${JSON.stringify({ title: topic.title, description: topic.description, objectives: topic.learningObjectives })}. Produce a concise factual foundation shared by the article and podcast. Prioritize official documentation, papers, books, and reputable engineering publications. Include only real, canonical source URLs; never invent a source. Local context:\n${context}`;
+    return this.json(this.models.content, prompt, 'topic_research', topicResearchSchema);
   }
   async createConversationPlan(
     input: CreateConversationPlanInput,

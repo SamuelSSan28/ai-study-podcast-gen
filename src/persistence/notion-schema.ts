@@ -2,7 +2,7 @@ import { Client } from '@notionhq/client';
 
 export const NOTION_DATABASE_NAMES = {
   plans: 'Study Plans',
-  records: 'Topics & Sessions',
+  records: 'Topics',
 } as const;
 
 const richText = { rich_text: {} } as const;
@@ -14,6 +14,9 @@ export const NOTION_DATABASE_PROPERTIES = {
     'App ID': richText,
     Goal: richText,
     Status: select,
+    'Preferred Days': { multi_select: {} },
+    'Session Duration': { number: { format: 'number' } },
+    'Current Topic ID': richText,
     Metadata: richText,
   },
   records: {
@@ -25,6 +28,11 @@ export const NOTION_DATABASE_PROPERTIES = {
     Metadata: richText,
     'Record Type': select,
     Status: select,
+    Order: { number: { format: 'number' } },
+    Level: select,
+    Studied: { checkbox: {} },
+    'Scheduled At': { date: {} },
+    'Estimated Time': { number: { format: 'number' } },
     Week: { number: { format: 'number' } },
     Sequence: { number: { format: 'number' } },
     Tags: { multi_select: {} },
@@ -67,7 +75,7 @@ export class NotionSchemaProvisioner {
       await this.client.databases.update({
         database_id: existing.id,
         properties: missing,
-      } as never);
+      });
     }
     return existing.id;
   }
