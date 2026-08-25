@@ -26,6 +26,7 @@ import { PodcastScriptValidator } from './conversation/podcast-script.validator'
 import { ConfigurableAudioDirector } from './audio/audio-director';
 import { TurnBasedTtsService } from './audio/turn-based-tts.service';
 import { FfmpegAudioComposer } from './audio/audio-composer';
+import { ProgressStudyPlanUseCase } from './application/progress-study-plan.use-case';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
@@ -53,6 +54,7 @@ import { FfmpegAudioComposer } from './audio/audio-composer';
     { provide: SESSION_REPOSITORY, useExisting: NotionRepository },
     GenerateStudyPlanUseCase,
     GenerateNextStudySessionUseCase,
+    ProgressStudyPlanUseCase,
     DiscordNotifier,
     PodcastScheduler,
   ],

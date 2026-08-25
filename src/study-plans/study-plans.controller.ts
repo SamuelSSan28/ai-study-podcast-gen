@@ -9,7 +9,7 @@ import {
   StudySessionRepository,
 } from '../application/ports';
 import { GenerateStudyPlanDto } from './dto';
-import { PodcastMode } from '../domain/models';
+import { PodcastMode, StudyPlan, StudySession } from '../domain/models';
 enum PodcastModeParam {
   INTERVIEW = 'INTERVIEW',
   DISCUSSION = 'DISCUSSION',
@@ -22,22 +22,24 @@ export class StudyPlansController {
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
   ) {}
-  @Post('generate') create(@Body() dto: GenerateStudyPlanDto) {
-    return this.generatePlan.execute(dto);
+  @Post() async create(@Body() dto: GenerateStudyPlanDto): Promise<StudyPlan> {
+    const plan = await this.generatePlan.execute(dto);
+    await this.generateNext.execute(plan.id);
+    return plan;
   }
-  @Get() findAll() {
+  @Get() findAll(): Promise<StudyPlan[]> {
     return this.plans.findAll();
   }
-  @Get(':id') findOne(@Param('id') id: string) {
+  @Get(':id') findOne(@Param('id') id: string): Promise<StudyPlan | null> {
     return this.plans.findById(id);
   }
   @Post(':id/generate-next') next(
     @Param('id') id: string,
     @Query('mode', new ParseEnumPipe(PodcastModeParam, { optional: true })) mode?: PodcastMode,
-  ) {
+  ): Promise<StudySession> {
     return this.generateNext.execute(id, mode);
   }
-  @Get(':id/sessions') findSessions(@Param('id') id: string) {
+  @Get(':id/sessions') findSessions(@Param('id') id: string): Promise<StudySession[]> {
     return this.sessions.findByPlan(id);
   }
 }

@@ -66,6 +66,13 @@ export class NotionRepository
     )[0];
     return page ? this.planFromPage(page) : null;
   }
+  async updatePlan(plan: StudyPlan): Promise<void> {
+    if (!plan.notionPageId) throw new Error('Study plan has no Notion page');
+    await this.client.pages.update({
+      page_id: plan.notionPageId,
+      properties: this.planProperties(plan) as never,
+    });
+  }
   async findPlanned(planId: string): Promise<StudyPlanTopic[]> {
     await this.ensureReady();
     return (
@@ -100,6 +107,18 @@ export class NotionRepository
           { property: 'Record Type', select: { equals: 'TOPIC' } },
           { property: 'Plan ID', rich_text: { equals: planId } },
           { property: 'Status', select: { equals: 'READY' } },
+        ],
+      })
+    ).map((page) => this.topicFromPage(page));
+  }
+  async findCompleted(planId: string): Promise<StudyPlanTopic[]> {
+    await this.ensureReady();
+    return (
+      await this.query(this.sessionsDb, {
+        and: [
+          { property: 'Record Type', select: { equals: 'TOPIC' } },
+          { property: 'Plan ID', rich_text: { equals: planId } },
+          { property: 'Status', select: { equals: 'COMPLETED' } },
         ],
       })
     ).map((page) => this.topicFromPage(page));
@@ -157,6 +176,7 @@ export class NotionRepository
     });
     const blocks: string[] = [];
     if (session.content) blocks.push(`STUDY_CONTENT_JSON:${JSON.stringify(session.content)}`);
+    if (session.research) blocks.push(`RESEARCH_JSON:${JSON.stringify(session.research)}`);
     if (session.conversationPlan)
       blocks.push(`CONVERSATION_PLAN_JSON:${JSON.stringify(session.conversationPlan)}`);
     if (session.rawScript) blocks.push(`RAW_SCRIPT_JSON:${JSON.stringify(session.rawScript)}`);
@@ -237,6 +257,9 @@ export class NotionRepository
       'App ID': this.text(p.id),
       Goal: this.text(p.goal),
       Status: { select: { name: p.status } },
+      'Preferred Days': { multi_select: p.preferredDays.map((name) => ({ name })) },
+      'Session Duration': { number: p.targetSessionMinutes },
+      'Current Topic ID': this.text(p.currentTopicId ?? ''),
       Metadata: this.text(JSON.stringify(p)),
     };
   }
@@ -247,6 +270,11 @@ export class NotionRepository
       'Plan ID': this.text(t.studyPlanId),
       'Record Type': { select: { name: 'TOPIC' } },
       Status: { select: { name: t.status } },
+      Order: { number: t.order },
+      Level: { select: { name: t.level } },
+      Studied: { checkbox: t.studied },
+      'Scheduled At': { date: { start: t.scheduledAt } },
+      'Estimated Time': { number: t.estimatedMinutes },
       Week: { number: t.week },
       Sequence: { number: t.sequence },
       Slug: this.text(t.slug),
@@ -279,24 +307,29 @@ export class NotionRepository
     return { ...this.metadata<StudyPlan>(p), notionPageId: p.id, notionUrl: p.url };
   }
   private topicFromPage(p: Page): StudyPlanTopic {
-    return { ...this.metadata<StudyPlanTopic>(p), notionPageId: p.id };
+    const topic = { ...this.metadata<StudyPlanTopic>(p), notionPageId: p.id };
+    const studied = p.properties['Studied'] as { checkbox?: boolean };
+    const status = p.properties['Status'] as { select?: { name?: StudyPlanTopic['status'] } };
+    topic.studied = studied.checkbox ?? topic.studied ?? false;
+    topic.status = status.select?.name ?? topic.status;
+    return topic;
   }
   private async sessionFromPage(p: Page): Promise<StudySession> {
     const session = { ...this.metadata<StudySession>(p), notionPageId: p.id, notionUrl: p.url };
     const text = await this.readBlockText(p.id);
     const marker =
-      '(?=STUDY_CONTENT_JSON:|CONVERSATION_PLAN_JSON:|RAW_SCRIPT_JSON:|SCRIPT_JSON:|Podcast Script\\n|AUDIO\\n|$)';
+      '(?=STUDY_CONTENT_JSON:|RESEARCH_JSON:|CONVERSATION_PLAN_JSON:|RAW_SCRIPT_JSON:|SCRIPT_JSON:|Podcast Script\\n|AUDIO\\n|$)';
     const latest = (name: string): string | undefined =>
       [...text.matchAll(new RegExp(`${name}:(\\{[^]*?\\})${marker}`, 'g'))].at(-1)?.[1];
     const content = latest('STUDY_CONTENT_JSON');
+    const research = latest('RESEARCH_JSON');
     const conversationPlan = latest('CONVERSATION_PLAN_JSON');
     const rawScript = latest('RAW_SCRIPT_JSON');
     const script = latest('SCRIPT_JSON');
     if (content) session.content = JSON.parse(content) as StudySession['content'];
+    if (research) session.research = JSON.parse(research) as StudySession['research'];
     if (conversationPlan)
-      session.conversationPlan = JSON.parse(
-        conversationPlan,
-      ) as StudySession['conversationPlan'];
+      session.conversationPlan = JSON.parse(conversationPlan) as StudySession['conversationPlan'];
     if (rawScript) session.rawScript = JSON.parse(rawScript) as StudySession['rawScript'];
     if (script) session.script = JSON.parse(script) as StudySession['script'];
     return session;

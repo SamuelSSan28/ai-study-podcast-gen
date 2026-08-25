@@ -60,7 +60,7 @@ export class KnowledgeBaseService {
           const inferred = relative
             .toLowerCase()
             .replace(/\.(md|txt)$/, '')
-            .split(/[\/-]/);
+            .split(/[/-]/);
           result.push({
             path: relative,
             tags: [...new Set([...headerTags, ...inferred])],

@@ -8,6 +8,7 @@ import {
   StudyPlan,
   StudyPlanTopic,
   StudySession,
+  TopicResearch,
 } from '../domain/models';
 export const PLAN_REPOSITORY = Symbol('PLAN_REPOSITORY');
 export const TOPIC_REPOSITORY = Symbol('TOPIC_REPOSITORY');
@@ -18,11 +19,13 @@ export interface StudyPlanRepository {
   findAll(): Promise<StudyPlan[]>;
   findById(id: string): Promise<StudyPlan | null>;
   findActive(): Promise<StudyPlan[]>;
+  updatePlan(plan: StudyPlan): Promise<void>;
 }
 export interface StudyTopicRepository {
   findTopicById(id: string): Promise<StudyPlanTopic | null>;
   findPlanned(planId: string): Promise<StudyPlanTopic[]>;
   findReady(planId: string): Promise<StudyPlanTopic[]>;
+  findCompleted(planId: string): Promise<StudyPlanTopic[]>;
   update(topic: StudyPlanTopic): Promise<void>;
 }
 export interface StudySessionRepository {
@@ -34,7 +37,19 @@ export interface StudySessionRepository {
 }
 export interface GeneratedPlan {
   overview: string;
-  topics: Array<Omit<StudyPlanTopic, 'id' | 'studyPlanId' | 'slug' | 'status' | 'notionPageId'>>;
+  topics: Array<
+    Omit<
+      StudyPlanTopic,
+      | 'id'
+      | 'studyPlanId'
+      | 'slug'
+      | 'status'
+      | 'notionPageId'
+      | 'order'
+      | 'scheduledAt'
+      | 'studied'
+    >
+  >;
 }
 export interface AiGateway {
   generatePlan(input: PlanGenerationInput, context: string): Promise<GeneratedPlan>;
@@ -43,6 +58,7 @@ export interface AiGateway {
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'>;
   generateContent(topic: StudyPlanTopic, context: string): Promise<StudyContent>;
+  researchTopic(topic: StudyPlanTopic, context: string): Promise<TopicResearch>;
   createConversationPlan(
     input: CreateConversationPlanInput,
     mode: PodcastMode,
@@ -70,8 +86,8 @@ export interface AudioStorage {
 export interface PlanGenerationInput {
   title: string;
   goal: string;
-  level: string;
   durationWeeks: number;
   sessionsPerWeek: number;
   preferredDays: string[];
+  targetSessionMinutes: number;
 }

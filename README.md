@@ -6,10 +6,10 @@ The goal is to study the engineering decisions behind concrete use cases: how a 
 
 ## How it works
 
-1. You describe the system, use case, or technical decision you want to explore, along with your experience level, study duration, and frequency.
-2. OpenAI creates a roadmap around the relevant concepts, design choices, trade-offs, and alternatives.
+1. You provide only a curriculum title and learning goal.
+2. OpenAI creates a progressive 18-session roadmap, from foundations to applied work, using centralized Monday/Wednesday/Friday and 45-minute defaults.
 3. The roadmap and session state are stored in Notion.
-4. At the configured time, the scheduler selects the next eligible topic.
+4. The first topic is generated immediately. Thereafter, checking `Studied` in Notion completes it and pre-generates the next scheduled topic.
 5. Files under `knowledge/` provide additional context.
 6. The application generates use-case-driven technical content, a conversational script, and audio in recoverable stages. Each episode can be a peer `DISCUSSION` or an `INTERVIEW` simulation while sharing the same content and audio pipeline.
 7. The episode becomes available through the API and is announced on Discord.

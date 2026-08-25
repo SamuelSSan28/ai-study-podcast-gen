@@ -129,12 +129,16 @@ export class GenerateNextStudySessionUseCase {
     try {
       if (!session.content) {
         const context = await this.knowledge.retrieve(topic.tags);
-        session.content = await this.ai.generateContent(topic, context);
+        session.research ??= await this.ai.researchTopic(topic, context);
+        session.content = await this.ai.generateContent(
+          topic,
+          `${context}\nSHARED_TOPIC_RESEARCH:${JSON.stringify(session.research)}`,
+        );
         session.stage = session.lastSuccessfulStage = 'CONTENT_READY';
         session.technicalContentHash = this.hash(session.content);
         await this.sessions.updateSession(session);
       }
-      const targetMinutes = this.config.get<number>('PODCAST_TARGET_MINUTES', 30);
+      const targetMinutes = Math.min(plan.targetSessionMinutes ?? 45, 30);
       if (!session.conversationPlan) {
         session.stage = 'CONVERSATION_PLAN_PENDING';
         await this.sessions.updateSession(session);

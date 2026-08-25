@@ -1,16 +1,16 @@
 import { PlanGenerationInput } from '../../application/ports';
 import { StudyContent, StudyPlanTopic } from '../../domain/models';
 export const PROMPT_VERSIONS = {
-  plan: 'study-plan.v1',
-  content: 'study-content.v1',
+  plan: 'study-plan.v2',
+  content: 'study-content.v2',
   script: 'podcast-script.v1',
   duplicate: 'duplicate.v1',
 } as const;
 export function buildPlanPrompt(input: PlanGenerationInput, context: string): string {
-  return `Create a coherent English backend interview study roadmap for ${input.durationWeeks} weeks and ${input.sessionsPerWeek} sessions per week. Goal: ${input.goal}. Level: ${input.level}. Each topic must be one concrete production use case, build on earlier sessions, and progress from foundations to distributed-system incidents. Return exactly ${input.durationWeeks * input.sessionsPerWeek} ordered topics. Local context (use only when relevant):\n${context}`;
+  return `Create a complete, progressive English curriculum titled "${input.title}" for this goal: ${input.goal}. It has ${input.durationWeeks} weeks and ${input.sessionsPerWeek} sessions per week. Return exactly ${input.durationWeeks * input.sessionsPerWeek} ordered topics. Progress through FOUNDATION, CORE, INTERMEDIATE, ADVANCED, and APPLIED work, ending in a realistic use case or practical/interview application. Every topic must be independently studyable in one ${input.targetSessionMinutes}-minute session and must never require more than 60 minutes; split broad subjects (for example Kafka) into focused concepts such as fundamentals, partitions, groups, offsets, rebalancing, and delivery semantics. Objectives must be concrete, prerequisites must refer to earlier topic titles, and adjacent sessions must advance rather than repeat. Local context (use only when relevant):\n${context}`;
 }
 export function buildContentPrompt(topic: StudyPlanTopic, context: string): string {
-  return `Write an English production engineering deep dive for the concrete scenario "${topic.title}": ${topic.description}. Cover requirements, assumptions, architecture and evolution, APIs/data ownership/async communication when relevant, consistency, concurrency, idempotency, retries, backpressure, caching, scalability, observability, SLI/SLO, CI/CD, deployment, incidents, trade-offs, an ASCII diagram, mistakes, B2-C1 vocabulary, review questions, and an optional challenge. Do not mechanically force technologies that do not fit.\nRelevant local sources:\n${context}`;
+  return `Write an English article for "${topic.title}": ${topic.description}. Target approximately ${topic.estimatedMinutes} minutes for the complete article-plus-audio session. Cover requirements, assumptions, architecture and evolution, APIs/data ownership/async communication when relevant, consistency, concurrency, idempotency, retries, scalability, observability, incidents, trade-offs, mistakes, vocabulary, and review questions. Do not force irrelevant technologies. The supplied research is the factual source of truth for both article and podcast; do not contradict it, and represent its sources in the content.\nResearch and local context:\n${context}`;
 }
 export function buildScriptPrompt(
   topic: StudyPlanTopic,
