@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -31,8 +31,13 @@ import { INTERVIEW_POLISHER_PROMPT_VERSION } from '../ai/prompts/interview/dialo
 import { DISCUSSION_PLANNER_PROMPT_VERSION } from '../ai/prompts/discussion/conversation-planner.prompt';
 import { DISCUSSION_SCRIPT_PROMPT_VERSION } from '../ai/prompts/discussion/podcast-script.prompt';
 import { DISCUSSION_POLISHER_PROMPT_VERSION } from '../ai/prompts/discussion/dialogue-polisher.prompt';
+import { RunTraceService } from '../observability/run-trace.service';
+import { EvalConfig } from '../observability/eval-config';
+
 @Injectable()
 export class GenerateNextStudySessionUseCase {
+  private readonly evalConfig: EvalConfig;
+
   constructor(
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
@@ -50,8 +55,17 @@ export class GenerateNextStudySessionUseCase {
     private readonly director: ConfigurableAudioDirector,
     private readonly tts: TurnBasedTtsService,
     private readonly composer: FfmpegAudioComposer,
-  ) {}
+    @Optional() private readonly trace?: RunTraceService,
+  ) {
+    this.evalConfig = this.trace?.getConfig() ?? { enabled: false, mode: 'final', skipWebResearch: false, skipDuplicateCheck: false, skipPriorContext: false, skipValidator: false, skipAudio: false, skipNotification: false, humanStepsRequired: 0 };
+  }
+
   async execute(planId: string, requestedMode?: PodcastMode): Promise<StudySession> {
+    this.trace?.beginRun({
+      runId: this.evalConfig.runId,
+      caseId: this.evalConfig.caseId,
+      mode: this.evalConfig.mode,
+    });
     const mode =
       requestedMode ?? this.config.get<PodcastMode>('DEFAULT_PODCAST_MODE', 'DISCUSSION');
     const plan = await this.plans.findById(planId);
@@ -59,9 +73,27 @@ export class GenerateNextStudySessionUseCase {
     const candidates = await this.topics.findPlanned(planId);
     if (!candidates.length) throw new Error('No planned topics remain');
     const history = await this.topics.findReady(planId);
-    const selection = await selectNextTopic(candidates, history, (candidate, completed) =>
-      this.ai.validateDuplicate(candidate, completed),
-    );
+    this.trace?.startStage('topic_selection');
+    const selection = await selectNextTopic(candidates, history, async (candidate, completed) => {
+      if (this.evalConfig.skipDuplicateCheck) {
+        this.trace?.recordDuplicateCheck({
+          topicId: candidate.id,
+          classification: 'NEW',
+        });
+        return 'NEW';
+      }
+      const classification = await this.ai.validateDuplicate(candidate, completed);
+      this.trace?.recordDuplicateCheck({ topicId: candidate.id, classification });
+      return classification;
+    });
+    for (const rejected of selection.rejected) {
+      this.trace?.recordDuplicateCheck({
+        topicId: rejected.topicId,
+        classification: 'REJECTED',
+        rejectedReason: rejected.reason,
+      });
+    }
+    this.trace?.endStage('topic_selection', { selectedTopicId: selection.topic?.id });
     const topic = selection.topic;
     if (!topic)
       throw new Error(
@@ -104,6 +136,7 @@ export class GenerateNextStudySessionUseCase {
     await this.sessions.createSession(session);
     return this.runRemainingStages(session, topic, plan);
   }
+
   async retry(sessionId: string): Promise<StudySession> {
     const session = await this.sessions.findSessionById(sessionId);
     if (!session) throw new Error('Session not found');
@@ -116,9 +149,35 @@ export class GenerateNextStudySessionUseCase {
     session.failureMessage = undefined;
     session.lastError = undefined;
     session.retryCount += 1;
+    this.trace?.recordRetry(session.retryCount);
     topic.status = 'GENERATING';
     return this.runRemainingStages(session, topic, plan);
   }
+
+  private maybeInjectFailure(stage: string): void {
+    if (this.evalConfig.injectFailureStage === stage) {
+      throw new Error(`Injected eval failure at ${stage}`);
+    }
+  }
+
+  private validateScript(
+    session: StudySession,
+    targetMinutes: number,
+  ): void {
+    if (this.evalConfig.skipValidator) {
+      this.trace?.recordValidation({ passed: true, errors: ['skipped_by_eval'] });
+      return;
+    }
+    try {
+      this.validator.validate(session.script!, session.conversationPlan!, targetMinutes);
+      this.trace?.recordValidation({ passed: true, errors: [] });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Validation failed';
+      this.trace?.recordValidation({ passed: false, errors: [message] });
+      throw error;
+    }
+  }
+
   private async runRemainingStages(
     session: StudySession,
     topic: StudyPlanTopic,
@@ -126,11 +185,27 @@ export class GenerateNextStudySessionUseCase {
   ): Promise<StudySession> {
     try {
       if (!session.content) {
-        session.research ??= await this.ai.researchTopic(topic);
+        this.trace?.startStage('research');
+        if (this.evalConfig.skipWebResearch) {
+          session.research = {
+            summary: topic.summary,
+            keyConcepts: topic.learningObjectives,
+            sources: [],
+          };
+        } else {
+          session.research = await this.ai.researchTopic(topic);
+          this.trace?.recordSourceCount(session.research.sources.length);
+        }
+        this.trace?.endStage('research', { sourceCount: session.research.sources.length });
+        this.maybeInjectFailure('CONTENT_READY');
+        this.trace?.startStage('content');
         session.content = await this.ai.generateContent(
           topic,
-          `CURRENT_WEB_RESEARCH:${JSON.stringify(session.research)}`,
+          this.evalConfig.skipWebResearch
+            ? `TOPIC_ONLY:${topic.description}`
+            : `CURRENT_WEB_RESEARCH:${JSON.stringify(session.research)}`,
         );
+        this.trace?.endStage('content');
         session.stage = session.lastSuccessfulStage = 'CONTENT_READY';
         session.technicalContentHash = this.hash(session.content);
         await this.sessions.updateSession(session);
@@ -139,9 +214,12 @@ export class GenerateNextStudySessionUseCase {
       if (!session.conversationPlan) {
         session.stage = 'CONVERSATION_PLAN_PENDING';
         await this.sessions.updateSession(session);
-        const prior = (await this.sessions.findByPlan(plan.id))
-          .filter((item) => item.id !== session.id && item.stage === 'COMPLETED')
-          .map(({ title, summary }) => ({ title, summary }));
+        this.trace?.startStage('conversation_plan');
+        const prior = this.evalConfig.skipPriorContext
+          ? []
+          : (await this.sessions.findByPlan(plan.id))
+              .filter((item) => item.id !== session.id && item.stage === 'COMPLETED')
+              .map(({ title, summary }) => ({ title, summary }));
         session.conversationPlan = await this.planner.createPlan(
           {
             studyPlanContext: { title: plan.title, goal: plan.goal, level: plan.level },
@@ -152,6 +230,8 @@ export class GenerateNextStudySessionUseCase {
           },
           session.podcastMode,
         );
+        this.trace?.endStage('conversation_plan', { priorSessionCount: prior.length });
+        this.maybeInjectFailure('CONVERSATION_PLAN_READY');
         session.conversationPlanHash = this.hash(session.conversationPlan);
         session.stage = session.lastSuccessfulStage = 'CONVERSATION_PLAN_READY';
         await this.sessions.updateSession(session);
@@ -159,11 +239,14 @@ export class GenerateNextStudySessionUseCase {
       if (!session.rawScript) {
         session.stage = 'SCRIPT_PENDING';
         await this.sessions.updateSession(session);
+        this.trace?.startStage('script');
         session.rawScript = await this.scriptGenerator.generate({
           technicalContent: session.content,
           conversationPlan: session.conversationPlan,
           mode: session.podcastMode,
         });
+        this.trace?.endStage('script');
+        this.maybeInjectFailure('SCRIPT_READY');
         session.rawScriptHash = this.hash(session.rawScript);
         session.stage = session.lastSuccessfulStage = 'SCRIPT_READY';
         await this.sessions.updateSession(session);
@@ -171,15 +254,19 @@ export class GenerateNextStudySessionUseCase {
       if (!session.script) {
         session.stage = 'DIALOGUE_POLISH_PENDING';
         await this.sessions.updateSession(session);
+        this.trace?.startStage('dialogue_polish');
         session.script = await this.polisher.polish(session.rawScript, session.podcastMode);
-        this.validator.validate(session.script, session.conversationPlan, targetMinutes);
+        this.trace?.endStage('dialogue_polish');
+        this.validateScript(session, targetMinutes);
+        this.maybeInjectFailure('DIALOGUE_READY');
         session.polishedScriptHash = this.hash(session.script);
         session.stage = session.lastSuccessfulStage = 'DIALOGUE_READY';
         await this.sessions.updateSession(session);
       }
-      if (!session.audioUrl) {
+      if (!session.audioUrl && !this.evalConfig.skipAudio) {
         session.stage = 'AUDIO_GENERATING';
         await this.sessions.updateSession(session);
+        this.trace?.startStage('audio');
         const destination = this.audio.destination(session.id);
         const jobs = this.director.buildJobs(session.script);
         const generated = await this.tts.generate(
@@ -211,6 +298,13 @@ export class GenerateNextStudySessionUseCase {
         session.audioUrl = artifact.listenUrl;
         session.audioDownloadUrl = artifact.downloadUrl;
         session.stage = session.lastSuccessfulStage = 'UPLOADED';
+        this.trace?.endStage('audio');
+        await this.sessions.updateSession(session);
+      } else if (!session.audioUrl && this.evalConfig.skipAudio) {
+        session.audioUrl = `eval://skipped/${session.id}`;
+        session.stage = session.lastSuccessfulStage = 'UPLOADED';
+        this.trace?.startStage('audio');
+        this.trace?.endStage('audio', { skipped: true });
         await this.sessions.updateSession(session);
       }
       session.stage = session.lastSuccessfulStage = 'COMPLETED';
@@ -219,13 +313,18 @@ export class GenerateNextStudySessionUseCase {
       topic.status = 'READY';
       await this.sessions.updateSession(session);
       await this.topics.update(topic);
-      try {
-        await this.notifier.notify(session, topic);
-        session.notificationStatus = 'SENT';
-      } catch {
-        session.notificationStatus = 'FAILED';
+      if (!this.evalConfig.skipNotification) {
+        try {
+          await this.notifier.notify(session, topic);
+          session.notificationStatus = 'SENT';
+        } catch {
+          session.notificationStatus = 'FAILED';
+        }
+      } else {
+        session.notificationStatus = 'NOT_PENDING';
       }
       await this.sessions.updateSession(session);
+      this.trace?.finishRun({ success: true });
       return session;
     } catch (error) {
       session.failedStage =
@@ -236,9 +335,15 @@ export class GenerateNextStudySessionUseCase {
       topic.status = 'FAILED';
       await this.sessions.updateSession(session);
       await this.topics.update(topic);
+      this.trace?.finishRun({
+        success: false,
+        failedStage: session.failedStage,
+        errorMessage: session.failureMessage,
+      });
       throw error;
     }
   }
+
   private hash(value: unknown): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }

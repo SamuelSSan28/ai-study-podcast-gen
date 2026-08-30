@@ -26,6 +26,7 @@ import { ConfigurableAudioDirector } from './audio/audio-director';
 import { TurnBasedTtsService } from './audio/turn-based-tts.service';
 import { FfmpegAudioComposer } from './audio/audio-composer';
 import { ProgressStudyPlanUseCase } from './application/progress-study-plan.use-case';
+import { RunTraceService } from './observability/run-trace.service';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
@@ -55,6 +56,7 @@ import { ProgressStudyPlanUseCase } from './application/progress-study-plan.use-
     ProgressStudyPlanUseCase,
     DiscordNotifier,
     PodcastScheduler,
+    RunTraceService,
   ],
 })
 export class AppModule {}

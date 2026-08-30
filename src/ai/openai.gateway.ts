@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
@@ -24,6 +24,7 @@ import {
   generatedPlanSchema,
   topicResearchSchema,
 } from './schemas';
+import { RunTraceService } from '../observability/run-trace.service';
 
 @Injectable()
 export class OpenAiGateway implements AiGateway {
@@ -32,6 +33,7 @@ export class OpenAiGateway implements AiGateway {
     config: ConfigService,
     private readonly models: AiModelConfig,
     private readonly audio: LocalAudioService,
+    @Optional() private readonly trace?: RunTraceService,
   ) {
     this.client = new OpenAI({ apiKey: config.getOrThrow<string>('OPENAI_API_KEY') });
   }
@@ -120,6 +122,13 @@ export class OpenAiGateway implements AiGateway {
             tool_choice: 'required' as const,
           }
         : {}),
+    });
+    this.trace?.recordOpenAiCall({
+      model,
+      name,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      webSearch,
     });
     if (!response.output_parsed) throw new Error(`OpenAI returned no parsed ${name} output`);
     return schema.parse(response.output_parsed);
