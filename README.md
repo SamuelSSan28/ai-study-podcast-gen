@@ -1,55 +1,65 @@
 # AI Study Podcast Generator
 
-A project that turns real-world software scenarios into technical learning paths and AI-generated podcast episodes.
+An orchestrated AI workflow that turns a learning goal into a persisted technical study roadmap and automatically prepares study sessions using current research, previous-session context, validation checks, and recoverable generation stages.
 
-The goal is to study the engineering decisions behind concrete use cases: how a technology or architecture works, which trade-offs it introduces, and when it is—or is not—a good fit. The application organizes those questions into a progressive roadmap, researches each topic from current web sources, and produces conversational episodes that connect theory to project constraints.
+You provide only a **title + goal**. The system plans 18 sessions, researches each topic, generates technical content and conversational podcast scripts, validates output before audio, uploads episodes, and tracks progress in Notion.
 
 ## How it works
 
-1. You provide only a curriculum title and learning goal.
-2. OpenAI creates a progressive 18-session roadmap, from foundations to applied work, using centralized Monday/Wednesday/Friday and 45-minute defaults.
+1. You provide a curriculum title and learning goal.
+2. OpenAI creates a progressive 18-session roadmap (Monday/Wednesday/Friday, 45-minute defaults).
 3. The roadmap and session state are stored in Notion.
-4. The first topic is generated immediately. Thereafter, checking `Studied` in Notion completes it and pre-generates the next scheduled topic.
-5. OpenAI web search builds a current factual foundation from real, authoritative sources.
-6. The application generates use-case-driven technical content, a conversational script, and audio in recoverable stages. Each episode can be a peer `DISCUSSION` or an `INTERVIEW` simulation while sharing the same content and audio pipeline.
-7. The episode becomes available through the API and is announced on Discord.
+4. The first topic is generated immediately. Marking `Studied` in Notion completes it and pre-generates the next topic.
+5. OpenAI web search builds a current factual foundation from authoritative sources.
+6. The pipeline generates technical content, a conversation plan (with prior-session context), a polished script, and audio in recoverable stages. Episodes can be `DISCUSSION` or `INTERVIEW` mode.
+7. Audio is uploaded to **Google Drive**; episodes are available via the API and announced on Discord.
 
 Episodes can also be generated manually through the HTTP API.
 
 ## Stack
 
-- Node.js 22, TypeScript, and NestJS
-- OpenAI Responses API and text-to-speech
+- Node.js 22, TypeScript, NestJS
+- OpenAI Responses API (structured JSON) and TTS
 - Notion for roadmap and session persistence
+- Google Drive for public audio hosting
 - Discord webhooks for notifications
 - Jest for tests
 
 ## Architecture
 
-The codebase separates domain rules, use cases, and external integrations:
-
 ```text
 src/
-├── ai/                # OpenAI prompts, schemas, and gateway
+├── ai/                # OpenAI prompts, schemas, gateway
 ├── application/       # use cases and persistence contracts
-├── audio/             # local MP3 storage and delivery
-├── domain/            # models, topic selection, and duplicate prevention
-├── persistence/       # Notion repository implementation
-├── scheduler/         # cron-based automatic generation
+├── audio/             # TTS, FFmpeg, Google Drive, local streaming
+├── conversation/      # planning, script, polish, validation
+├── domain/            # models, topic selection, duplicate prevention
+├── observability/     # RunTraceService for automated eval metrics
+├── eval/              # in-memory eval runners and rubric scoring
+├── persistence/       # Notion repository
+├── scheduler/         # cron-based generation
 ├── study-plans/       # roadmap API
 └── study-sessions/    # session and retry API
 ```
 
-Session generation uses checkpoints (`CONTENT_READY`, `SCRIPT_READY`, and `AUDIO_READY`). If a stage fails, retry resumes after the last completed checkpoint instead of restarting the entire pipeline. A key derived from the roadmap and topic prevents duplicate sessions for the same roadmap item.
+### Session pipeline checkpoints
+
+Generation persists progress through these stages (retry resumes after the last successful one):
+
+`CONTENT_PENDING` → `CONTENT_READY` → `CONVERSATION_PLAN_READY` → `SCRIPT_READY` → `DIALOGUE_READY` → `AUDIO_READY` → `UPLOADED` → `COMPLETED`
+
+A generation key derived from plan + topic + mode prevents duplicate sessions for the same roadmap item.
 
 ## Running locally
 
 ### Requirements
 
 - Node.js 22+
-- an OpenAI API key
-- a Notion integration
-- a Discord webhook
+- FFmpeg (for audio composition)
+- OpenAI API key
+- Notion integration + parent page
+- Google Drive OAuth credentials (see [environment docs](docs/environment.md))
+- Discord webhook
 
 ### Setup
 
@@ -60,56 +70,74 @@ npm install
 cp .env.example .env
 ```
 
-Fill in `.env`. In Notion, share an empty page with your integration and set its ID as `NOTION_PARENT_PAGE_ID`. On startup, the application creates or updates the required roadmap and session databases under that page.
-
-Start the development server:
+Fill in `.env`. Share an empty Notion page with your integration and set `NOTION_PARENT_PAGE_ID`. On startup, the app creates the required databases under that page.
 
 ```bash
 npm run start:dev
 ```
 
-The API is available at `http://localhost:3000` by default.
+API default: `http://localhost:3000`
 
-### Running with Docker Compose
-
-Create and fill in the local environment file before starting the container:
+### Docker Compose
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Compose loads the application variables from `.env`, publishes the configured
-`PORT` (or `3000` when it is omitted), and keeps generated audio in the persistent
-`podcast-audio` volume. FFmpeg is included in the application image. The Compose
-service uses the development image, mounts `src/` into the container, and runs
-Nest in watch mode, so saving a source file automatically recompiles and restarts
-the application. Rebuild the image after changing `package.json` or
-`package-lock.json`.
+Compose mounts `src/` for hot reload and persists audio in the `podcast-audio` volume.
 
-Stop the application with `docker compose down`. To also delete the generated
-audio volume, use `docker compose down --volumes`.
+## Hackathon submission (micro1 Agentic Workflows)
+
+This project includes automated baseline vs final evaluation for the hackathon:
+
+| Metric | Baseline | Final workflow | Change |
+|---|---:|---:|---|
+| Primary metric (avg rubric score) | _run `npm run eval:report`_ | _run `npm run eval:report`_ | _auto_ |
+| Human active steps / session | 5 (baseline design) | 0 (orchestrated) | -5 |
+| End-to-end success rate | _measured_ | _measured_ | _measured_ |
+
+_Regenerate the table with `npm run eval:all` after filling `.env`. Cases come from repo tests — see [`evaluation/cases/README.md`](evaluation/cases/README.md)._
+
+### Submission docs
+
+- [Hackathon overview](docs/hackathon/README.md)
+- [Improvement changelog](docs/hackathon/improvement-changelog.md)
+- [Evaluation methodology](docs/hackathon/evaluation.md)
+- [Reproduction guide](docs/hackathon/reproduction.md)
+- [Agent trajectories](docs/hackathon/trajectories/)
+- [Video script](docs/hackathon/video-script.md)
+- [Pre-existing vs hackathon work](docs/hackathon/pre-existing-vs-hackathon.md)
+
+### Eval commands
+
+```bash
+npm run eval:baseline -- --pilot
+npm run eval:final -- --pilot
+npm run eval:report
+npm run eval:export-trajectories
+npm run eval:all          # full automated pipeline
+```
 
 ## Documentation
 
-- [API reference and examples](docs/api.md)
+- [API reference](docs/api.md)
 - [Environment variables](docs/environment.md)
-- [Architecture and implementation plan](docs/architecture-and-implementation-plan.md)
+- [Architecture plan](docs/architecture-and-implementation-plan.md)
+- [Evaluation README](evaluation/README.md)
 
 ## Scripts
 
 ```bash
-npm run start:dev  # development with reload
-npm run build      # production build
-npm run lint       # static analysis
-npm test           # unit tests
-npm run test:cov   # test coverage
+npm run start:dev   # development with reload
+npm run build       # production build
+npm run lint        # static analysis
+npm test            # unit tests
+npm run test:cov    # coverage
 ```
 
 ## Contributing
 
-Issues and pull requests are welcome. Before submitting a change:
-
-1. keep external integrations behind the contracts in `src/application/ports.ts`;
-2. add tests for domain rules and bug fixes;
-3. run `npm run lint`, `npm test`, and `npm run build`.
+1. Keep external integrations behind contracts in `src/application/ports.ts`
+2. Add tests for domain rules and bug fixes
+3. Run `npm run lint`, `npm test`, and `npm run build`
