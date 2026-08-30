@@ -14,7 +14,7 @@ export const envSchema = z.object({
   NOTION_API_KEY: z.string().min(1),
   NOTION_PARENT_PAGE_ID: z.string().min(1),
   DISCORD_WEBHOOK_URL: z.string().url(),
-  PODCAST_CRON: z.string().default('0 * * * *'),
+  PODCAST_CRON: z.string().default('0 12 * * 2,5'),
   PODCAST_TIMEZONE: z.string().default('America/Sao_Paulo'),
   PODCAST_TARGET_MINUTES: z.coerce.number().int().min(5).max(60).default(30),
   DEFAULT_PODCAST_MODE: z.enum(['INTERVIEW', 'DISCUSSION']).default('DISCUSSION'),
