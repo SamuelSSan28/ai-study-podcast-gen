@@ -7,9 +7,17 @@
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "lint": "eslint \"{src,test,scripts}/**/*.ts\"",
     "test": "jest",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "eval:baseline": "ts-node scripts/run-baseline.ts",
+    "eval:final": "ts-node scripts/run-evaluation.ts",
+    "eval:score": "ts-node scripts/score-rubric.ts",
+    "eval:report": "ts-node scripts/generate-eval-report.ts",
+    "eval:export-trajectories": "ts-node scripts/export-trajectories.ts",
+    "eval:experiment": "ts-node scripts/run-experiment.ts",
+    "eval:all": "npm run eval:baseline -- --pilot && npm run eval:final -- --pilot && npm run eval:score && npm run eval:report && npm run eval:export-trajectories",
+    "eval:demo": "ts-node scripts/seed-demo-runs.ts && npm run eval:report && npm run eval:export-trajectories"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
@@ -42,6 +50,7 @@
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.41.0"
+    "typescript-eslint": "^8.41.0",
+    "dotenv": "^16.6.1"
   }
 }
