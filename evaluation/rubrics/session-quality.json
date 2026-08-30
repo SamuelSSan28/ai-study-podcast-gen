@@ -1,0 +1,18 @@
+{
+  "name": "session-quality",
+  "version": "1.0.0",
+  "weights": {
+    "objective_coverage": 0.3,
+    "grounding": 0.25,
+    "structural_validity": 0.2,
+    "completion": 0.15,
+    "efficiency": 0.1
+  },
+  "rules": {
+    "objective_coverage": "Fraction of expectedObjectives found in generated content text (case-insensitive keyword match).",
+    "grounding": "1.0 if source_count >= 2 (final mode with research); 0.5 if source_count == 1; 0.0 if no sources when research enabled; 1.0 if baseline mode.",
+    "structural_validity": "1.0 if validation_passed; 0.5 if skipped; 0.0 if failed.",
+    "completion": "1.0 if end_to_end_success; else 0.0.",
+    "efficiency": "Normalized inverse of wall_clock_ms capped at 30 minutes (higher is faster)."
+  }
+}
