@@ -1,0 +1,21 @@
+{
+  "id": "case-next-topic-kafka-foundations",
+  "source": "test/next-topic-policy.spec.ts",
+  "title": "Kafka",
+  "goal": "Build a reliable event pipeline",
+  "topic": {
+    "title": "Kafka Foundations",
+    "description": "Build a reliable event pipeline",
+    "summary": "Kafka fundamentals",
+    "week": 1,
+    "sequence": 1,
+    "difficulty": "FOUNDATIONAL",
+    "tags": ["kafka"],
+    "learningObjectives": [],
+    "prerequisites": [],
+    "depthDelta": "Introduces the foundation",
+    "level": "FOUNDATION",
+    "estimatedMinutes": 45
+  },
+  "expectedObjectives": []
+}

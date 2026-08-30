@@ -1,0 +1,21 @@
+{
+  "id": "case-prompt-factory-kafka-backpressure",
+  "source": "test/prompt-factory.spec.ts",
+  "title": "Kafka",
+  "goal": "Learn backpressure",
+  "topic": {
+    "title": "Kafka Backpressure",
+    "description": "Protect consumers under load",
+    "summary": "Backpressure strategies",
+    "week": 1,
+    "sequence": 1,
+    "difficulty": "ADVANCED",
+    "tags": ["kafka"],
+    "learningObjectives": [],
+    "prerequisites": [],
+    "depthDelta": "Backpressure",
+    "level": "ADVANCED",
+    "estimatedMinutes": 45
+  },
+  "expectedObjectives": []
+}
