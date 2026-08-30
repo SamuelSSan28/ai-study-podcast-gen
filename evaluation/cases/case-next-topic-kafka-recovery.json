@@ -1,0 +1,21 @@
+{
+  "id": "case-next-topic-kafka-recovery",
+  "source": "test/next-topic-policy.spec.ts",
+  "title": "Kafka",
+  "goal": "Build a reliable event pipeline",
+  "topic": {
+    "title": "Kafka Recovery",
+    "description": "Build a reliable event pipeline",
+    "summary": "Kafka fundamentals",
+    "week": 1,
+    "sequence": 2,
+    "difficulty": "FOUNDATIONAL",
+    "tags": ["kafka"],
+    "learningObjectives": [],
+    "prerequisites": ["Consumer Groups"],
+    "depthDelta": "Adds recovery under downstream saturation",
+    "level": "FOUNDATION",
+    "estimatedMinutes": 45
+  },
+  "expectedObjectives": []
+}
