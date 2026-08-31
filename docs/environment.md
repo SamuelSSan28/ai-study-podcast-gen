@@ -12,6 +12,15 @@ documented default when omitted.
 | `PORT`                    | No       | `3000`  | Positive integer for the HTTP server port.                                                                     |
 | `STUDY_PLAN_CREATE_TOKEN` | Yes      | —       | Shared token required in the `token` query parameter of every API request. Must contain at least 8 characters. |
 
+## SQLite and job queues
+
+| Variable                 | Required | Default                      | Description                                                          |
+| ------------------------ | -------- | ---------------------------- | -------------------------------------------------------------------- |
+| `DATABASE_URL`           | No       | `file:../data/app.db`        | SQLite path **relative to `prisma/schema.prisma`** (→ `./data/app.db` na raiz). |
+| `REDIS_URL`              | No       | `redis://127.0.0.1:6379`     | Redis connection URL for BullMQ workers.                             |
+| `LOCAL_PROGRESS_ENABLED` | No       | `true`                       | When `true`, runs a local-only progress cron (no Notion poll).       |
+| `LOCAL_PROGRESS_CRON`    | No       | `0 */12 * * *`               | Cron for SQLite progress checks (default: every 12 hours).           |
+
 ## OpenAI
 
 | Variable                         | Required | Default           | Description                                                                       |
@@ -32,7 +41,7 @@ to the account associated with `OPENAI_API_KEY`.
 
 | Variable                | Required | Default | Description                                                                                                                       |
 | ----------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `NOTION_API_KEY`        | Yes      | —       | Secret for the Notion integration used to persist plans, topics, and sessions.                                                    |
+| `NOTION_API_KEY`        | Yes      | —       | Secret for the Notion integration used to publish readable study content (dual-write). |
 | `NOTION_PARENT_PAGE_ID` | Yes      | —       | ID of the Notion page under which the application creates or updates its databases. The page must be shared with the integration. |
 | `DISCORD_WEBHOOK_URL`   | Yes      | —       | Valid Discord webhook URL used to announce generated episodes.                                                                    |
 

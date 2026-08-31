@@ -1,5 +1,7 @@
 # Agent trajectories
 
-Exported automatically by `npm run eval:export-trajectories` after eval runs exist in `artifacts/runs/`.
+Exported automatically by `npm run eval:export-trajectories`.
 
-Run `npm run eval:final` first, then export.
+- [Planning example](./planning-example.md)
+- [Research example](./research-example.md)
+- [Session generation example](./session-generation-example.md)
