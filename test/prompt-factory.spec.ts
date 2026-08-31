@@ -53,6 +53,8 @@ describe('resolvePrompt', () => {
     expect(result.prompt).toContain('runningScenario');
     expect(result.prompt).toContain('SOURCE ARTICLE');
     expect(result.prompt).toContain('ARTICLE FIDELITY');
+    expect(result.prompt).toContain('SPEAKER POLICY');
+    expect(result.prompt).toContain('speakerMode');
   });
 
   it('resolves the explanation script with transform rules', () => {
@@ -85,5 +87,7 @@ describe('resolvePrompt', () => {
     expect(result.version).toContain('explanation');
     expect(result.prompt).toContain('Transform, do not expand');
     expect(result.prompt).toContain('SOURCE ARTICLE');
+    expect(result.prompt).toContain('SPEAKER POLICY');
+    expect(result.prompt).toContain('speakerMode');
   });
 });

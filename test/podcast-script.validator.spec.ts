@@ -35,6 +35,8 @@ describe('PodcastScriptValidator', () => {
         concept: 'Distributed log',
         examples: ['Producer'],
         realWorldCases: ['Event streaming'],
+        speakerMode: 'instructor_solo',
+        dialogueReason: null,
         coHostMoments: [],
         keyTakeaways: ['Kafka is a log'],
       },
@@ -46,6 +48,8 @@ describe('PodcastScriptValidator', () => {
         concept: 'Sharding',
         examples: ['Key-based routing'],
         realWorldCases: ['Ordering per key'],
+        speakerMode: 'instructor_solo',
+        dialogueReason: null,
         coHostMoments: [],
         keyTakeaways: ['Partitions enable parallelism'],
       },
@@ -57,6 +61,8 @@ describe('PodcastScriptValidator', () => {
         concept: 'Production usage',
         examples: ['CDC pipeline'],
         realWorldCases: ['Outbox pattern'],
+        speakerMode: 'instructor_solo',
+        dialogueReason: null,
         coHostMoments: [],
         keyTakeaways: ['Design for failure'],
       },
@@ -107,5 +113,61 @@ describe('PodcastScriptValidator', () => {
       sequence: 3,
     });
     expect(() => validator.validate(script, explanationPlan, 30)).toThrow(/solo_lecture/);
+  });
+
+  it('rejects CO_HOST in instructor_solo sections even when delivery allows dialogue', () => {
+    const mixedPlan: ExplanationConversationPlan = {
+      ...explanationPlan,
+      deliveryApproach: 'instructor_with_faq',
+      deliveryRationale: 'Selective dialogue at decision points.',
+      sections: explanationPlan.sections.map((section, index) =>
+        index === 1
+          ? {
+              ...section,
+              speakerMode: 'dialogue' as const,
+              dialogueReason: 'comparison' as const,
+              coHostMoments: ['Ask whether partitions belong to producers or brokers'],
+            }
+          : section,
+      ),
+    };
+    const script = buildScript(120, [
+      { id: 't0', speaker: 'INSTRUCTOR', text: 'Intro', sectionId: 'intro', sequence: 0 },
+      { id: 't1', speaker: 'CO_HOST', text: 'Who owns partitions?', sectionId: 'intro', sequence: 1 },
+      { id: 't2', speaker: 'INSTRUCTOR', text: 'Cases', sectionId: 'deep-dive', sequence: 2 },
+      { id: 't3', speaker: 'INSTRUCTOR', text: 'End', sectionId: 'cases', sequence: 3 },
+    ]);
+    expect(() => validator.validate(script, mixedPlan, 30)).toThrow(/instructor_solo/);
+  });
+
+  it('allows CO_HOST in dialogue sections', () => {
+    const mixedPlan: ExplanationConversationPlan = {
+      ...explanationPlan,
+      deliveryApproach: 'instructor_with_faq',
+      deliveryRationale: 'Selective dialogue at decision points.',
+      sections: explanationPlan.sections.map((section, index) =>
+        index === 1
+          ? {
+              ...section,
+              speakerMode: 'dialogue' as const,
+              dialogueReason: 'comparison' as const,
+              coHostMoments: ['Ask whether partitions belong to producers or brokers'],
+            }
+          : section,
+      ),
+    };
+    const script = buildScript(120, [
+      { id: 't0', speaker: 'INSTRUCTOR', text: 'Intro', sectionId: 'intro', sequence: 0 },
+      { id: 't1', speaker: 'CO_HOST', text: 'Who owns partitions?', sectionId: 'deep-dive', sequence: 1 },
+      {
+        id: 't2',
+        speaker: 'INSTRUCTOR',
+        text: 'Partitions are a broker concern for parallelism.',
+        sectionId: 'deep-dive',
+        sequence: 2,
+      },
+      { id: 't3', speaker: 'INSTRUCTOR', text: 'End', sectionId: 'cases', sequence: 3 },
+    ]);
+    expect(() => validator.validate(script, mixedPlan, 30)).not.toThrow();
   });
 });
