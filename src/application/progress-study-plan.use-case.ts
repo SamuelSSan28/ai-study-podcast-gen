@@ -5,14 +5,14 @@ import {
   StudyTopicRepository,
   TOPIC_REPOSITORY,
 } from './ports';
-import { GenerateNextStudySessionUseCase } from './generate-next-session.use-case';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class ProgressStudyPlanUseCase {
   constructor(
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
-    private readonly generate: GenerateNextStudySessionUseCase,
+    private readonly queue: QueueService,
   ) {}
 
   async execute(
@@ -22,7 +22,10 @@ export class ProgressStudyPlanUseCase {
     if (!plan || plan.status !== 'ACTIVE') throw new Error('Active study plan not found');
     const ready = (await this.topics.findReady(planId)).sort((a, b) => a.order - b.order);
     const current = ready[0];
-    if (!current) return 'NEEDS_GENERATION';
+    if (!current) {
+      await this.queue.enqueueGenerateSession(planId);
+      return 'NEEDS_GENERATION';
+    }
     if (!current.studied) return 'WAITING';
 
     current.status = 'COMPLETED';
@@ -37,8 +40,7 @@ export class ProgressStudyPlanUseCase {
 
     plan.currentTopicId = next.id;
     await this.plans.updatePlan(plan);
-    // Generation is intentionally immediate; scheduledAt remains the consumption date.
-    await this.generate.execute(plan.id);
+    await this.queue.enqueueGenerateSession(planId);
     return 'ADVANCED';
   }
 }

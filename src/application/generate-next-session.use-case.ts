@@ -335,6 +335,13 @@ export class GenerateNextStudySessionUseCase {
       topic.status = 'FAILED';
       await this.sessions.updateSession(session);
       await this.topics.update(topic);
+      if (!this.evalConfig.skipNotification) {
+        try {
+          await this.notifier.notifyFailure({ session, topic, plan, error });
+        } catch {
+          // Discord failure alerts must not mask the original pipeline error.
+        }
+      }
       this.trace?.finishRun({
         success: false,
         failedStage: session.failedStage,

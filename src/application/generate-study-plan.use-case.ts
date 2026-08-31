@@ -1,39 +1,40 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PLAN_REPOSITORY, PlanGenerationInput, StudyPlanRepository } from './ports';
-import { StudyPlan, StudyPlanTopic } from '../domain/models';
+import { StudyPlanTopic } from '../domain/models';
 import { topicSlug } from '../domain/topic-normalization';
 import { OpenAiGateway } from '../ai/openai.gateway';
-import { STUDY_DEFAULTS, StudyPlanSettings } from '../config/study-defaults';
+import { STUDY_DEFAULTS } from '../config/study-defaults';
 import { calculateStudyDates } from '../domain/study-schedule';
+
 @Injectable()
 export class GenerateStudyPlanUseCase {
   constructor(
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     private readonly ai: OpenAiGateway,
   ) {}
-  async execute(input: {
-    title: string;
-    goal: string;
-    settings?: StudyPlanSettings;
-  }): Promise<StudyPlan> {
-    const targetSessionMinutes =
-      input.settings?.targetSessionMinutes ?? STUDY_DEFAULTS.session.targetMinutes;
+
+  async execute(planId: string): Promise<void> {
+    const pending = await this.plans.findById(planId);
+    if (!pending) throw new NotFoundException(`Study plan ${planId} not found`);
+
     const planningInput: PlanGenerationInput = {
-      title: input.title,
-      goal: input.goal,
+      title: pending.title,
+      goal: pending.goal,
       durationWeeks: STUDY_DEFAULTS.curriculum.durationWeeks,
       sessionsPerWeek: STUDY_DEFAULTS.schedule.sessionsPerWeek,
       preferredDays: [...STUDY_DEFAULTS.schedule.days],
-      targetSessionMinutes,
+      targetSessionMinutes: pending.targetSessionMinutes,
     };
+
     const generated = await this.ai.generatePlan(planningInput);
     const expected = planningInput.durationWeeks * planningInput.sessionsPerWeek;
-    if (generated.topics.length !== expected)
+    if (generated.topics.length !== expected) {
       throw new Error(`AI returned ${generated.topics.length} topics; expected ${expected}`);
-    const id = randomUUID();
+    }
+
     const seen = new Set<string>();
-    const start = new Date();
+    const start = new Date(pending.createdAt);
     const dates = calculateStudyDates(start, STUDY_DEFAULTS.schedule.days, generated.topics.length);
     const topics: StudyPlanTopic[] = generated.topics.map((topic, index) => {
       const slug = topicSlug(topic.title);
@@ -42,7 +43,7 @@ export class GenerateStudyPlanUseCase {
       return {
         ...topic,
         id: randomUUID(),
-        studyPlanId: id,
+        studyPlanId: planId,
         slug,
         status: 'PLANNED',
         order: index + 1,
@@ -50,24 +51,12 @@ export class GenerateStudyPlanUseCase {
         studied: false,
       };
     });
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + planningInput.durationWeeks * 7 - 1);
-    const plan: StudyPlan = {
-      id,
-      title: input.title,
-      goal: input.goal,
-      level: 'adaptive',
-      durationWeeks: planningInput.durationWeeks,
-      sessionsPerWeek: planningInput.sessionsPerWeek,
-      preferredDays: STUDY_DEFAULTS.schedule.days,
-      startDate: start.toISOString().slice(0, 10),
-      endDate: end.toISOString().slice(0, 10),
-      status: 'ACTIVE',
-      overview: generated.overview,
-      createdAt: new Date().toISOString(),
-      targetSessionMinutes,
-      currentTopicId: topics[0]?.id,
-    };
-    return this.plans.create(plan, topics);
+
+    pending.overview = generated.overview;
+    pending.status = 'ACTIVE';
+    pending.provisioningStatus = 'GENERATING';
+    pending.currentTopicId = topics[0]?.id;
+
+    await this.plans.finalizePlan(pending, topics);
   }
 }
