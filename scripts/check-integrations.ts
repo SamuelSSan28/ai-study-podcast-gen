@@ -52,18 +52,39 @@ async function checkNotion(): Promise<CheckResult> {
   };
 }
 
-async function checkDiscord(): Promise<CheckResult> {
-  const url = process.env.DISCORD_WEBHOOK_URL;
-  if (!url) return { name: 'Discord', ok: false, detail: 'DISCORD_WEBHOOK_URL missing' };
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content: '✅ Integration check — ai-study-podcast-gen' }),
-  });
-  if (response.ok || response.status === 204) {
-    return { name: 'Discord', ok: true, detail: `webhook accepted (HTTP ${response.status})` };
+async function checkDiscord(): Promise<CheckResult[]> {
+  const successUrl = process.env.DISCORD_WEBHOOK_URL;
+  const errorsUrl = process.env.DISCORD_WEBHOOK_ERRORS_URL;
+  const results: CheckResult[] = [];
+  if (!successUrl) {
+    results.push({ name: 'Discord (#study)', ok: false, detail: 'DISCORD_WEBHOOK_URL missing' });
+  } else {
+    const response = await fetch(successUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: '✅ Integration check — ai-study-podcast-gen (#study)' }),
+    });
+    results.push({
+      name: 'Discord (#study)',
+      ok: response.ok || response.status === 204,
+      detail: response.ok || response.status === 204 ? `webhook accepted (HTTP ${response.status})` : `HTTP ${response.status}`,
+    });
   }
-  return { name: 'Discord', ok: false, detail: `HTTP ${response.status}` };
+  if (!errorsUrl) {
+    results.push({ name: 'Discord (#study-errors)', ok: false, detail: 'DISCORD_WEBHOOK_ERRORS_URL missing' });
+  } else {
+    const response = await fetch(errorsUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: '✅ Integration check — ai-study-podcast-gen (#study-errors)' }),
+    });
+    results.push({
+      name: 'Discord (#study-errors)',
+      ok: response.ok || response.status === 204,
+      detail: response.ok || response.status === 204 ? `webhook accepted (HTTP ${response.status})` : `HTTP ${response.status}`,
+    });
+  }
+  return results;
 }
 
 async function checkApi(): Promise<CheckResult> {
@@ -107,7 +128,7 @@ async function main(): Promise<void> {
     ...checkEnv(),
     await checkOpenAi(),
     await checkNotion(),
-    await checkDiscord(),
+    ...(await checkDiscord()),
     await checkApi(),
   ];
 

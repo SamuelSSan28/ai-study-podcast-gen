@@ -30,6 +30,7 @@ export const envSchema = z
           'NOTION_PARENT_PAGE_ID must contain a valid Notion page UUID (32 hex chars, no slug prefix)',
       }),
     DISCORD_WEBHOOK_URL: z.string().url(),
+    DISCORD_WEBHOOK_ERRORS_URL: z.string().url(),
     DISCORD_MAX_ATTACHMENT_BYTES: z.coerce
       .number()
       .int()

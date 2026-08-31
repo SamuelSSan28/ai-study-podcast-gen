@@ -43,7 +43,8 @@ to the account associated with `OPENAI_API_KEY`.
 | ----------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `NOTION_API_KEY`        | Yes      | —       | Secret for the Notion integration used to publish readable study content (dual-write). |
 | `NOTION_PARENT_PAGE_ID` | Yes      | —       | ID of the Notion page under which the application creates or updates its databases. The page must be shared with the integration. |
-| `DISCORD_WEBHOOK_URL`   | Yes      | —       | Valid Discord webhook URL used to announce generated episodes.                                                                    |
+| `DISCORD_WEBHOOK_URL`        | Yes      | —       | Discord webhook for **#study** (success, progress, episodes ready). |
+| `DISCORD_WEBHOOK_ERRORS_URL` | Yes      | —       | Discord webhook for **#study-errors** (all failures).               |
 
 ## Scheduling and podcast generation
 
@@ -100,7 +101,8 @@ STUDY_PLAN_CREATE_TOKEN=replace-with-a-long-random-token
 OPENAI_API_KEY=sk-replace-me
 NOTION_API_KEY=secret_replace_me
 NOTION_PARENT_PAGE_ID=replace-me
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/replace/me
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/replace/study
+DISCORD_WEBHOOK_ERRORS_URL=https://discord.com/api/webhooks/replace/study-errors
 AUDIO_PUBLIC_BASE_URL=http://localhost:3000/audio
 GOOGLE_DRIVE_CLIENT_ID=replace-me.apps.googleusercontent.com
 GOOGLE_DRIVE_CLIENT_SECRET=replace-me
