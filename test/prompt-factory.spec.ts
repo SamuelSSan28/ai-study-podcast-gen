@@ -46,14 +46,14 @@ describe('resolvePrompt', () => {
   it('resolves the interview planner independently', () => {
     const result = resolvePrompt({ stage: 'conversation-plan', mode: 'INTERVIEW', value: input });
     expect(result.version).toContain('interview');
-    expect(result.prompt).toContain('senior backend engineering interview');
+    expect(result.prompt).toContain('entrevista técnica realista');
     expect(result.prompt).not.toContain('ENGINEER_A');
   });
 
   it('resolves the peer discussion planner and its distinct schema', () => {
     const result = resolvePrompt({ stage: 'conversation-plan', mode: 'DISCUSSION', value: input });
     expect(result.version).toContain('discussion');
-    expect(result.prompt).toContain('This is not an interview');
+    expect(result.prompt).toContain('Isto não é uma entrevista');
     expect(() => result.schema.parse({ mode: 'INTERVIEW' })).toThrow();
   });
 });

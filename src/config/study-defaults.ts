@@ -10,7 +10,7 @@ export const STUDY_DEFAULTS = {
   audio: { targetMinutes: 20, maxMinutes: 30 },
   article: { maxWords: 4000, readingWordsPerMinute: 220 },
   speech: { wordsPerMinute: 145 },
-  language: 'en',
+  language: 'pt-BR',
 } as const;
 
 export interface StudyPlanSettings {

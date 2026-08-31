@@ -6,12 +6,12 @@ export function buildInterviewScriptPrompt(
   content: StudyContent,
   plan: InterviewConversationPlan,
 ): string {
-  return `Turn this plan into a natural technical interview between INTERVIEWER and CANDIDATE.
+  return `Transforme este plano em uma entrevista técnica natural entre INTERVIEWER e CANDIDATE.
 
-The interviewer asks concise questions, challenges assumptions, reveals constraints progressively, and follows up on the previous answer rather than approving everything. The candidate asks clarifying questions, thinks aloud, justifies trade-offs, and occasionally revises an earlier decision. Use natural B2-C1 spoken English.
+O entrevistador faz perguntas concisas, desafia premissas, revela restrições progressivamente e aprofunda a resposta anterior em vez de apenas aprovar. O candidato faz perguntas de esclarecimento, pensa em voz alta, justifica trade-offs e ocasionalmente revisa uma decisão anterior. Use português brasileiro falado, natural e conciso.
 
-Avoid trivia, textbook answers, oversized monologues, perfect immediate answers, and references to prompts, lessons, documents, or study material. Return structured turns with stable ids, zero-based sequence, section ids, delivery direction, and a duration estimate.
+Evite trivia, respostas de livro-texto, monólogos longos, respostas perfeitas imediatas e referências a prompts, lições, documentos ou material de estudo. Retorne falas estruturadas com ids estáveis, sequência zero-based, ids de seção, direção de entrega e estimativa de duração.
 
-Technical source: ${JSON.stringify(content)}
-Interview plan: ${JSON.stringify(plan)}`;
+Fonte técnica: ${JSON.stringify(content)}
+Plano da entrevista: ${JSON.stringify(plan)}`;
 }

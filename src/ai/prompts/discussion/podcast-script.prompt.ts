@@ -6,12 +6,12 @@ export function buildDiscussionScriptPrompt(
   content: StudyContent,
   plan: DiscussionConversationPlan,
 ): string {
-  return `Turn this plan into a natural technical podcast conversation between ENGINEER_A and ENGINEER_B. They are competent peers.
+  return `Transforme este plano em uma conversa natural de podcast técnico entre ENGINEER_A e ENGINEER_B. São pares competentes.
 
-Both introduce ideas, react to the previous turn, ask natural questions, challenge assumptions, complement reasoning, occasionally disagree, suggest alternatives, and revisit decisions as constraints appear. Avoid question → complete answer → next question. Develop ideas across several varied, reasonably concise turns. Neither speaker is permanently the interviewer, teacher, expert, or student. Use natural B2-C1 spoken English.
+Ambos introduzem ideias, reagem à fala anterior, fazem perguntas naturais, desafiam premissas, complementam o raciocínio, discordam ocasionalmente, sugerem alternativas e revisitam decisões conforme restrições aparecem. Evite pergunta → resposta completa → próxima pergunta. Desenvolva ideias em várias falas variadas e razoavelmente concisas. Nenhum falante é permanentemente entrevistador, professor, especialista ou aluno. Use português brasileiro falado, natural e adequado para TTS.
 
-Do not contradict the technical source or mention documents, prompts, exercises, lessons, or study material. Return structured turns with stable ids, zero-based sequence, section ids, delivery direction, and a duration estimate.
+Não contradiga a fonte técnica nem mencione documentos, prompts, exercícios, lições ou material de estudo. Retorne falas estruturadas com ids estáveis, sequência zero-based, ids de seção, direção de entrega e estimativa de duração.
 
-Technical source: ${JSON.stringify(content)}
-Discussion plan: ${JSON.stringify(plan)}`;
+Fonte técnica: ${JSON.stringify(content)}
+Plano da discussão: ${JSON.stringify(plan)}`;
 }

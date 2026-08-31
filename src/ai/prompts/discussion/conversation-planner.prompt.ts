@@ -3,20 +3,21 @@ import { CreateConversationPlanInput } from '../../../domain/models';
 export const DISCUSSION_PLANNER_PROMPT_VERSION = 'conversation-planner.discussion.v1';
 
 export function buildDiscussionPlannerPrompt(input: CreateConversationPlanInput): string {
-  return `Plan a natural ${input.targetMinutes}-minute technical podcast discussion between two experienced software engineers.
+  return `Planeje uma discussão técnica natural de ${input.targetMinutes} minutos entre dois engenheiros de software experientes.
 
-This is not an interview. Both engineers are peers and collaboratively explore one production system. Do not write dialogue. Create one evolving discussion: business problem → initial architecture → trade-offs → new constraints → alternative approaches → architecture refinement → production incident → reliability/observability → final reflection.
+Isto não é uma entrevista. Ambos são pares e exploram colaborativamente um sistema em produção. Não escreva diálogo. Crie uma discussão evolutiva: problema de negócio → arquitetura inicial → trade-offs → novas restrições → abordagens alternativas → refinamento da arquitetura → incidente em produção → confiabilidade/observabilidade → reflexão final.
 
-For each section define entryPoint, discussionGoal, conceptsToExplore, tensions, questionsToNaturallyRaise, scenarioReveals, possibleDisagreement, and connectionToPreviousSection. Set mode to DISCUSSION.
+Para cada seção defina entryPoint, discussionGoal, conceptsToExplore, tensions, questionsToNaturallyRaise, scenarioReveals, possibleDisagreement e connectionToPreviousSection. Defina mode como DISCUSSION.
 
-Rules:
-- Stay focused on this project, not independent backend questions.
-- Do not force technologies; both engineers contribute meaningful ideas.
-- Later constraints challenge earlier assumptions.
-- Include one realistic production incident without revealing its root cause.
+Regras:
+- Mantenha foco neste projeto, não em perguntas backend independentes.
+- Não force tecnologias; ambos os engenheiros contribuem com ideias relevantes.
+- Restrições posteriores desafiam premissas anteriores.
+- Inclua um incidente realista em produção sem revelar a causa raiz.
+- Todo o conteúdo planejado deve estar em português brasileiro.
 
-Study plan context: ${JSON.stringify(input.studyPlanContext)}
-Topic: ${JSON.stringify(input.topic)}
-Technical source: ${JSON.stringify(input.technicalContent)}
-Previous sessions (context only): ${JSON.stringify(input.previousSessions ?? [])}`;
+Contexto do plano: ${JSON.stringify(input.studyPlanContext)}
+Tópico: ${JSON.stringify(input.topic)}
+Fonte técnica: ${JSON.stringify(input.technicalContent)}
+Sessões anteriores (apenas contexto): ${JSON.stringify(input.previousSessions ?? [])}`;
 }

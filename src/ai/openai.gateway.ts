@@ -49,7 +49,7 @@ export class OpenAiGateway implements AiGateway {
     candidate: StudyPlanTopic,
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'> {
-    const prompt = `Classify candidate as NEW, RELATED_BUT_DEEPER, or DUPLICATE. Preserve legitimate progression. Candidate: ${JSON.stringify(candidate)} History summaries: ${JSON.stringify(history.map(({ title, summary, tags, depthDelta }) => ({ title, summary, tags, depthDelta })))}`;
+    const prompt = `Classifique o candidato como NEW, RELATED_BUT_DEEPER ou DUPLICATE. Preserve progressão legítima. Candidate: ${JSON.stringify(candidate)} Histórico resumido: ${JSON.stringify(history.map(({ title, summary, tags, depthDelta }) => ({ title, summary, tags, depthDelta })))}`;
     return (
       await this.json(this.models.validation, prompt, 'duplicate_validation', duplicateSchema)
     ).classification;
@@ -63,8 +63,25 @@ export class OpenAiGateway implements AiGateway {
     );
   }
   async researchTopic(topic: StudyPlanTopic): Promise<TopicResearch> {
-    const prompt = `Research the study topic ${JSON.stringify({ title: topic.title, description: topic.description, objectives: topic.learningObjectives })}. Use web search to produce a current, concise factual foundation shared by the article and podcast. Prefer primary and authoritative sources: official documentation, standards, original papers, books, and first-party engineering publications. Every source must have been returned by web search, use its canonical URL, and directly support the research. Do not rely on model memory for facts that may have changed and never invent, guess, or reconstruct a URL.`;
-    return this.json(this.models.content, prompt, 'topic_research', topicResearchSchema, true);
+    const prompt = `Pesquise o tópico de estudo ${JSON.stringify({ title: topic.title, description: topic.description, objectives: topic.learningObjectives })}. Use busca na web para produzir uma base factual atual e concisa compartilhada pelo artigo e pelo podcast. Prefira fontes primárias e autoritativas: documentação oficial, padrões, papers originais, livros e publicações de engenharia de primeira mão. Cada fonte deve ter sido retornada pela busca, usar sua URL canônica e apoiar diretamente a pesquisa. Não confie na memória do modelo para fatos que podem ter mudado e nunca invente, adivinhe ou reconstrua uma URL. Resuma em português brasileiro.`;
+    const research = await this.json(
+      this.models.content,
+      prompt,
+      'topic_research',
+      topicResearchSchema,
+      true,
+    );
+    return {
+      ...research,
+      sources: research.sources.filter((source) => {
+        try {
+          const parsed = new URL(source.url);
+          return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+          return false;
+        }
+      }),
+    };
   }
   async createConversationPlan(
     input: CreateConversationPlanInput,
