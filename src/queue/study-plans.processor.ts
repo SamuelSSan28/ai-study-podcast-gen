@@ -1,15 +1,20 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { Inject } from '@nestjs/common';
 import { GenerateStudyPlanUseCase } from '../application/generate-study-plan.use-case';
 import { GenerateNextStudySessionUseCase } from '../application/generate-next-session.use-case';
-import { PLAN_REPOSITORY, StudyPlanRepository } from '../application/ports';
+import {
+  PLAN_REPOSITORY,
+  SESSION_REPOSITORY,
+  TOPIC_REPOSITORY,
+  StudyPlanRepository,
+  StudySessionRepository,
+  StudyTopicRepository,
+} from '../application/ports';
 import { DiscordNotifier } from '../notifications/discord.notifier';
 import { PlanJob, STUDY_PLANS_QUEUE } from './queue.service';
 import { QueueService } from './queue.service';
-import { isFinalJobAttempt } from './queue-dedup';
-import { StudyPlanProvisioningStatus } from '../domain/models';
+import { StudyPlanProvisioningStatus, StudySession } from '../domain/models';
 
 @Processor(STUDY_PLANS_QUEUE)
 export class StudyPlansProcessor extends WorkerHost {
@@ -19,6 +24,8 @@ export class StudyPlansProcessor extends WorkerHost {
     private readonly generatePlan: GenerateStudyPlanUseCase,
     private readonly generateNext: GenerateNextStudySessionUseCase,
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
+    @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
+    @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
     private readonly queue: QueueService,
     private readonly notifier: DiscordNotifier,
   ) {
@@ -28,28 +35,73 @@ export class StudyPlansProcessor extends WorkerHost {
   async process(job: Job<PlanJob>): Promise<void> {
     const { planId } = job.data;
     let phase: StudyPlanProvisioningStatus = 'CREATING';
+    let plan = await this.plans.findById(planId);
+    if (plan) {
+      try {
+        await this.notifier.notifyPlanProvisioning(plan, 'CREATING');
+      } catch {
+        /* Discord must not block provisioning */
+      }
+    }
+
     try {
+      const topicsBefore = await this.topics.findTopicsByPlan(planId);
+      const hadCurriculum = topicsBefore.length > 0;
+
       await this.generatePlan.execute(planId);
       phase = 'GENERATING';
-      await this.queue.enqueueNotionPlanFinalized(planId);
-      const session = await this.generateNext.execute(planId);
+
+      plan = await this.plans.findById(planId);
+      if (plan) {
+        plan.provisioningStatus = 'GENERATING';
+        plan.provisioningError = undefined;
+        await this.plans.updatePlan(plan);
+        try {
+          await this.notifier.notifyPlanProvisioning(plan, 'GENERATING');
+        } catch {
+          /* Discord must not block provisioning */
+        }
+      }
+
+      const topics = await this.topics.findTopicsByPlan(planId);
+      if (!hadCurriculum && topics.length > 0 && plan) {
+        try {
+          await this.notifier.notifyPlanCurriculumReady(plan, topics.length);
+        } catch {
+          /* Discord must not block provisioning */
+        }
+      }
+
+      const needsNotionSync =
+        !plan?.notionPageId || topics.some((topic) => !topic.notionPageId);
+      if (needsNotionSync) {
+        await this.queue.enqueueNotionPlanFinalized(planId);
+      }
+
+      const session = await this.resumeOrGenerateFirstSession(planId);
       await this.queue.enqueueNotionSession(session.id);
-      const plan = await this.plans.findById(planId);
+
+      plan = await this.plans.findById(planId);
       if (plan) {
         plan.provisioningStatus = 'READY';
         plan.provisioningError = undefined;
         await this.plans.updatePlan(plan);
+        try {
+          await this.notifier.notifyPlanReady(plan);
+        } catch {
+          /* Discord must not block provisioning */
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Plan generation failed for ${planId} (${phase}): ${message}`);
-      const plan = await this.plans.findById(planId);
+      plan = await this.plans.findById(planId);
       if (plan) {
         plan.provisioningStatus = 'FAILED';
         plan.provisioningError = message;
         await this.plans.updatePlan(plan);
       }
-      if (isFinalJobAttempt(job)) {
+      try {
         await this.notifier.notifyProcessingError({
           plan: plan ?? undefined,
           planId,
@@ -57,8 +109,22 @@ export class StudyPlansProcessor extends WorkerHost {
           phase,
           error,
         });
+      } catch {
+        /* already logged in notifier */
       }
       throw error;
     }
+  }
+
+  private async resumeOrGenerateFirstSession(planId: string): Promise<StudySession> {
+    const existing = await this.sessions.findByPlan(planId);
+    const completed = existing.find((session) => session.stage === 'COMPLETED');
+    if (completed) return completed;
+
+    const resumable = existing.find((session) => session.stage !== 'COMPLETED');
+    if (resumable) {
+      return this.generateNext.retry(resumable.id);
+    }
+    return this.generateNext.executeForProvisioning(planId);
   }
 }
