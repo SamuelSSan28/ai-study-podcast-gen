@@ -1,4 +1,4 @@
-# Hackathon Submission — AI Study Podcast Generator
+# Workflow Evaluation — AI Study Podcast Generator
 
 ## User and problem
 
@@ -65,17 +65,12 @@ The orchestrated workflow removes manual session coordination (`human_steps_requ
 
 Without web research (`EVAL_SKIP_WEB_RESEARCH=true`), grounding subscore drops — factual freshness depends on the research stage, not model memory alone.
 
-## Hot take
-
-See [`hot-take.md`](hot-take.md).
-
 ## Reproduce it
 
 See [`reproduction.md`](reproduction.md).
 
-## Deliverables checklist
+## Evaluation resources
 
 - [x] Solution code + [`improvement-changelog.md`](improvement-changelog.md)
 - [x] [`reproduction.md`](reproduction.md)
-- [ ] 5-minute video (script in [`video-script.md`](video-script.md))
 - [x] Agent trajectories in [`trajectories/`](trajectories/)

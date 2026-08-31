@@ -69,7 +69,7 @@ ${trace.validations
 
 async function main(): Promise<void> {
   const runsDir = join(process.cwd(), 'artifacts', 'runs');
-  const outDir = join(process.cwd(), 'docs', 'hackathon', 'trajectories');
+  const outDir = join(process.cwd(), 'docs', 'evaluation', 'trajectories');
   mkdirSync(outDir, { recursive: true });
 
   const traces: Array<{ trace: RunTrace; metrics: ScoredMetrics }> = [];
@@ -108,7 +108,7 @@ Exported automatically by \`npm run eval:export-trajectories\`.
     join(outDir, 'session-generation-example.md'),
     renderTrajectory('Session generation trajectory', pickBestRun('session', traces)),
   );
-  console.log('Trajectories exported to docs/hackathon/trajectories/');
+  console.log('Trajectories exported to docs/evaluation/trajectories/');
 }
 
 main().catch((error) => {

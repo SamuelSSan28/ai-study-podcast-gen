@@ -1,6 +1,6 @@
 # Evaluation
 
-Automated evaluation for the hackathon submission. All metrics are generated during pipeline execution — no manual spreadsheets.
+Automated workflow evaluation. All metrics are generated during pipeline execution — no manual spreadsheets.
 
 ## Layout
 

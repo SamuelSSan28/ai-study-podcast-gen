@@ -74,13 +74,13 @@ npm run eval:demo
 | Aggregated baseline | `evaluation/results/baseline.json` |
 | Aggregated final | `evaluation/results/final.json` |
 | Human-readable report | `evaluation/results/report.md` |
-| Trajectories | `docs/hackathon/trajectories/*.md` |
+| Trajectories | `docs/evaluation/trajectories/*.md` |
 
 ## Expected output
 
 After `eval:report`, open `evaluation/results/report.md` for the baseline vs final table.
 
-After `eval:export-trajectories`, three markdown trajectory examples are written under `docs/hackathon/trajectories/`.
+After `eval:export-trajectories`, three markdown trajectory examples are written under `docs/evaluation/trajectories/`.
 
 ## Approximate time and cost
 
@@ -96,7 +96,7 @@ Set `EVAL_SKIP_AUDIO=false` for full audio on specific runs.
 
 - Baseline is an automated proxy for manual ChatGPT+TTS workflow, not a timed human study
 - Rubric objective matching uses keyword presence (automated, not human review)
-- Demo seeds (`eval:demo`) use synthetic traces — replace with `eval:all` for submission metrics
+- Demo seeds (`eval:demo`) use synthetic traces — replace them with `eval:all` for real metrics
 
 ## Verify build quality
 
