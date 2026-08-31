@@ -79,16 +79,46 @@ export const NOTION_SELECT_OPTIONS = {
 
 export type NotionSelectOption = { id?: string; name: string; color?: string };
 
+/**
+ * Merges desired select options into existing ones.
+ * Notion treats option names as case-insensitive unique — so `PLANNED` and
+ * `Planned` collide. When they match case-insensitively, keep the existing
+ * option id and force the display name to the desired (new) label.
+ */
 export function mergeSelectOptions(
   existing: NotionSelectOption[],
   desired: readonly string[],
 ): NotionSelectOption[] {
-  const byName = new Map(existing.map((option) => [option.name, option]));
-  const merged = [...existing];
+  const byLower = new Map(existing.map((option) => [option.name.toLowerCase(), option]));
+  const merged: NotionSelectOption[] = [];
+  const used = new Set<string>();
+
   for (const name of desired) {
-    if (!byName.has(name)) merged.push({ name });
+    const key = name.toLowerCase();
+    const prev = byLower.get(key);
+    if (prev) {
+      merged.push({ ...prev, name });
+      used.add(key);
+    } else {
+      merged.push({ name });
+    }
   }
+
+  for (const option of existing) {
+    const key = option.name.toLowerCase();
+    if (!used.has(key)) merged.push(option);
+  }
+
   return merged;
+}
+
+export function selectOptionsNeedUpdate(
+  existing: NotionSelectOption[],
+  merged: NotionSelectOption[],
+): boolean {
+  if (existing.length !== merged.length) return true;
+  const existingKeys = new Set(existing.map((option) => `${option.id ?? ''}:${option.name}`));
+  return merged.some((option) => !existingKeys.has(`${option.id ?? ''}:${option.name}`));
 }
 
 type DatabaseKind = keyof typeof NOTION_DATABASE_NAMES;
@@ -161,7 +191,7 @@ export class NotionSchemaProvisioner {
       if (property.type === 'select') {
         const existing = property.select?.options ?? [];
         const merged = mergeSelectOptions(existing, optionNames);
-        if (merged.length !== existing.length) {
+        if (selectOptionsNeedUpdate(existing, merged)) {
           updates[propertyName] = { select: { options: merged } };
         }
       }
@@ -169,7 +199,7 @@ export class NotionSchemaProvisioner {
       if (property.type === 'multi_select') {
         const existing = property.multi_select?.options ?? [];
         const merged = mergeSelectOptions(existing, optionNames);
-        if (merged.length !== existing.length) {
+        if (selectOptionsNeedUpdate(existing, merged)) {
           updates[propertyName] = { multi_select: { options: merged } };
         }
       }

@@ -28,7 +28,15 @@ export class NotionContentPublisher implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.ensureReady();
+    try {
+      await this.ensureReady();
+    } catch (error) {
+      this.logger.error(
+        `Notion schema provision failed (app continues; publishes may no-op): ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+    }
   }
 
   private async ensureReady(): Promise<void> {
