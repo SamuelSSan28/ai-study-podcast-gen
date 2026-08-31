@@ -1,41 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
 import { PLAN_REPOSITORY, StudyPlanRepository } from '../application/ports';
 import { QueueService } from '../queue/queue.service';
-import { DiscordNotifier } from '../notifications/discord.notifier';
 
 @Injectable()
-export class PodcastScheduler {
-  private readonly logger = new Logger(PodcastScheduler.name);
+export class LocalProgressCron {
+  private readonly logger = new Logger(LocalProgressCron.name);
 
   constructor(
+    private readonly config: ConfigService,
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     private readonly queue: QueueService,
-    private readonly notifier: DiscordNotifier,
   ) {}
 
-  @Cron(process.env.PODCAST_CRON ?? '0 * * * *', {
+  @Cron(process.env.LOCAL_PROGRESS_CRON ?? '0 */12 * * *', {
     timeZone: process.env.PODCAST_TIMEZONE ?? 'America/Sao_Paulo',
   })
-  async run(): Promise<void> {
-    for (const plan of await this.plans.findActive()) {
+  async checkLocalProgress(): Promise<void> {
+    if (!this.config.get<boolean>('LOCAL_PROGRESS_ENABLED', true)) return;
+    const activePlans = await this.plans.findActive();
+    for (const plan of activePlans) {
       try {
         await this.queue.enqueueAdvancePlan(plan.id);
       } catch (error) {
         this.logger.error(
-          `Scheduled generation failed for plan ${plan.id}`,
+          `Local progress check failed for plan ${plan.id}`,
           error instanceof Error ? error.stack : undefined,
         );
-        try {
-          await this.notifier.notifyProcessingError({
-            plan,
-            operation: 'scheduled session generation',
-            error,
-          });
-        } catch {
-          // Ignore Discord delivery failures for scheduler alerts.
-        }
       }
     }
   }
