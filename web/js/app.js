@@ -312,11 +312,13 @@ function renderTopicMaterials(topic, session) {
       ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(session.notionUrl)}" target="_blank" rel="noopener">Ler artigo</a>`
       : '';
 
-  const audioAction = audioReady ? renderInlineAudio(session) : '';
-
   const scriptAction = scriptReady
     ? `<button type="button" class="btn btn-sm btn-link p-0 script-toggle" data-session-id="${session.id}">Ver roteiro</button>`
     : '';
+
+  const podcastPending = sessionIsGenerating(session)
+    ? STAGE_LABELS[session.stage] ?? 'Gerando…'
+    : 'Ainda não gerado';
 
   return `<div class="materials-grid">
     ${renderMaterialCard({
@@ -328,14 +330,6 @@ function renderTopicMaterials(topic, session) {
       actionHtml: articleAction,
     })}
     ${renderMaterialCard({
-      icon: '🎧',
-      label: 'Podcast',
-      ready: audioReady,
-      readyLabel: 'Disponível',
-      pendingLabel: sessionIsGenerating(session) ? STAGE_LABELS[session.stage] ?? 'Gerando…' : 'Ainda não gerado',
-      actionHtml: audioAction,
-    })}
-    ${renderMaterialCard({
       icon: '📝',
       label: 'Roteiro',
       ready: scriptReady,
@@ -343,6 +337,7 @@ function renderTopicMaterials(topic, session) {
       pendingLabel: sessionIsGenerating(session) ? STAGE_LABELS[session.stage] ?? 'Gerando…' : 'Ainda não gerado',
       actionHtml: scriptAction,
     })}
+    ${renderPodcastMaterialCard(session, audioReady, podcastPending)}
   </div>
   <div class="script-panel d-none" data-script-for="${session?.id ?? ''}"></div>`;
 }
