@@ -32,6 +32,7 @@ function soloSection(overrides: Record<string, unknown> = {}): Record<string, un
     purpose: 'Teach what useState means',
     speakerMode: 'instructor_solo',
     dialogueReason: null,
+    dialoguePrompt: null,
     recap: false,
     ...overrides,
   };
@@ -89,6 +90,7 @@ describe('explanation speaker policy schema', () => {
         articleSectionId: 'lift',
         speakerMode: 'dialogue',
         dialogueReason: 'decision',
+        dialoguePrompt: 'Should a derived total also be stored?',
       }),
     });
     expect(result.success).toBe(true);

@@ -100,6 +100,42 @@ export interface StudyContent {
   reviewQuestions?: string[] | null;
 }
 
+export interface ArticleLessonSectionPlan {
+  id: string;
+  title: string;
+  teachingGoal: string;
+  dependsOn: string[];
+  introduces: string[];
+  boundaries: string[];
+}
+export interface ArticleLessonPlan {
+  lessonGoal: string;
+  centralQuestion: string;
+  progression: ArticleLessonSectionPlan[];
+}
+export interface EstablishedTerm {
+  term: string;
+  meaning: string;
+}
+export interface ArticleGenerationState {
+  centralQuestion: string;
+  conceptsEstablished: string[];
+  terminologyEstablished: EstablishedTerm[];
+  examplesAlreadyUsed: string[];
+  previousSectionSummary: string;
+}
+export interface ArticleSectionGenerationResult {
+  section: StudyArticleSection;
+  state: ArticleGenerationState;
+}
+export interface SectionReview {
+  approved: boolean;
+  issues: Array<{
+    type: 'scope' | 'future_scope' | 'clarity' | 'boundary' | 'repetition' | 'progression';
+    instruction: string;
+  }>;
+}
+
 export interface ConstraintReveal {
   afterTurn?: number | null;
   condition?: string | null;
@@ -170,6 +206,7 @@ export interface ExplanationSection {
   speakerMode: ExplanationSpeakerMode;
   /** Required when speakerMode is dialogue; null/omit for instructor_solo */
   dialogueReason?: ExplanationDialogueReason | null;
+  dialoguePrompt?: string | null;
   recap?: boolean;
   /** @deprecated persisted-plan compatibility */
   id?: string;
@@ -199,9 +236,7 @@ export interface ExplanationConversationPlan {
   deliveryRationale?: string;
 }
 export type ConversationPlan =
-  | InterviewConversationPlan
-  | DiscussionConversationPlan
-  | ExplanationConversationPlan;
+  InterviewConversationPlan | DiscussionConversationPlan | ExplanationConversationPlan;
 export interface StudyPlanContext {
   title: string;
   goal: string;
@@ -221,13 +256,7 @@ export interface CreateConversationPlanInput {
 }
 
 export type PodcastSpeaker =
-  | 'INTERVIEWER'
-  | 'CANDIDATE'
-  | 'ENGINEER_A'
-  | 'ENGINEER_B'
-  | 'HOST'
-  | 'INSTRUCTOR'
-  | 'CO_HOST';
+  'INTERVIEWER' | 'CANDIDATE' | 'ENGINEER_A' | 'ENGINEER_B' | 'HOST' | 'INSTRUCTOR' | 'CO_HOST';
 export type DialogueRole =
   | 'HOOK'
   | 'QUESTION'
@@ -238,12 +267,7 @@ export type DialogueRole =
   | 'CORRECTION'
   | 'RECAP'
   | 'TRANSITION';
-export type DeliveryStyle =
-  | 'normal'
-  | 'reflective'
-  | 'conversational'
-  | 'energetic'
-  | 'question';
+export type DeliveryStyle = 'normal' | 'reflective' | 'conversational' | 'energetic' | 'question';
 export interface DeliveryDirection {
   style?: DeliveryStyle | null;
   tone?: 'neutral' | 'curious' | 'skeptical' | 'thoughtful' | 'confident' | 'concerned' | null;
@@ -268,14 +292,19 @@ export interface RawPodcastScript {
   turns: PodcastTurn[];
   estimatedDurationSeconds: number;
 }
+export interface PodcastGenerationState {
+  previousSectionClosing: string;
+  terminology: EstablishedTerm[];
+  examplesAlreadyUsed: string[];
+  speakerContext: string;
+}
+export interface PodcastSectionGenerationResult {
+  turns: PodcastTurn[];
+  state: PodcastGenerationState;
+}
 export type PodcastScript = RawPodcastScript;
 export type ArticleReviewIssueType =
-  | 'scope'
-  | 'progression'
-  | 'coverage'
-  | 'clarity'
-  | 'repetition'
-  | 'example_overuse';
+  'scope' | 'progression' | 'coverage' | 'clarity' | 'repetition' | 'example_overuse';
 export interface ArticleReview {
   approved: boolean;
   issues: Array<{

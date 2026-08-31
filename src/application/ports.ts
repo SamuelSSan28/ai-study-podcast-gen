@@ -65,7 +65,7 @@ export interface AiGateway {
     candidate: StudyPlanTopic,
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'>;
-  generateContent(topic: StudyPlanTopic, context: string): Promise<StudyContent>;
+  generateContent(topic: StudyPlanTopic, research: TopicResearch): Promise<StudyContent>;
   reviewArticle(
     topic: StudyPlanTopic,
     research: TopicResearch,

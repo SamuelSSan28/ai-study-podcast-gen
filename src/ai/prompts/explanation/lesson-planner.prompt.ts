@@ -16,6 +16,8 @@ For each section return only:
 - purpose: how this part should be taught in audio, not new technical content;
 - speakerMode: instructor_solo or dialogue;
 - dialogueReason: misconception, comparison, tradeoff, or decision when dialogue is justified; otherwise null;
+- dialoguePrompt: the exact article-grounded doubt, contrast, tradeoff, or decision the second
+  speaker contributes; null for instructor_solo;
 - recap: whether this section should close with a concise recap.
 
 NARRATION TO TEACH. DIALOGUE TO REASON.

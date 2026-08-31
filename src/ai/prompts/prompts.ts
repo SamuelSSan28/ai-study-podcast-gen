@@ -9,7 +9,7 @@ import { ARTICLE_SCOPE_DISCIPLINE, formatLearningObjectives } from './scope-disc
 
 export const PROMPT_VERSIONS = {
   plan: 'study-plan.v4',
-  content: 'study-content.v8',
+  content: 'article-pipeline.v1',
   script: 'podcast-script.v2',
   duplicate: 'duplicate.v1',
 } as const;

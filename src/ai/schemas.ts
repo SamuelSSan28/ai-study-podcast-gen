@@ -42,7 +42,7 @@ export const normalizedPlanInputSchema = z.object({
   title: z.string().min(1),
   goal: z.string().min(1),
 });
-const articleContentBlockSchema = z.discriminatedUnion('type', [
+export const articleContentBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paragraph'), text: z.string(), italic: z.boolean() }),
   z.object({
     type: z.literal('heading'),
@@ -75,7 +75,7 @@ export const contentSchema = z.object({
         blocks: z.array(articleContentBlockSchema).min(1),
       }),
     )
-    .min(3),
+    .min(1),
   reviewQuestions: z.array(z.string()).nullable(),
 });
 export const articleReviewSchema = z.object({
@@ -91,6 +91,46 @@ export const articleReviewSchema = z.object({
         'repetition',
         'example_overuse',
       ]),
+      instruction: z.string().min(1),
+    }),
+  ),
+});
+export const articleLessonPlanSchema = z.object({
+  lessonGoal: z.string().min(1),
+  centralQuestion: z.string().min(1),
+  progression: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        title: z.string().min(1),
+        teachingGoal: z.string().min(1),
+        dependsOn: z.array(z.string()),
+        introduces: z.array(z.string()).min(1),
+        boundaries: z.array(z.string()),
+      }),
+    )
+    .min(2),
+});
+export const articleGenerationStateSchema = z.object({
+  centralQuestion: z.string(),
+  conceptsEstablished: z.array(z.string()),
+  terminologyEstablished: z.array(z.object({ term: z.string(), meaning: z.string() })),
+  examplesAlreadyUsed: z.array(z.string()),
+  previousSectionSummary: z.string(),
+});
+export const articleSectionGenerationSchema = z.object({
+  section: z.object({
+    id: z.string(),
+    title: z.string(),
+    blocks: z.array(articleContentBlockSchema).min(1),
+  }),
+  state: articleGenerationStateSchema,
+});
+export const sectionReviewSchema = z.object({
+  approved: z.boolean(),
+  issues: z.array(
+    z.object({
+      type: z.enum(['scope', 'future_scope', 'clarity', 'boundary', 'repetition', 'progression']),
       instruction: z.string().min(1),
     }),
   ),
@@ -240,6 +280,7 @@ const explanationSectionSchema = z
     purpose: z.string(),
     speakerMode: z.enum(['instructor_solo', 'dialogue']),
     dialogueReason: explanationDialogueReasonSchema.nullable(),
+    dialoguePrompt: z.string().nullable(),
     recap: z.boolean(),
   })
   .superRefine((section, ctx) => {
@@ -250,6 +291,13 @@ const explanationSectionSchema = z
         path: ['dialogueReason'],
       });
     }
+    if (section.speakerMode === 'dialogue' && !section.dialoguePrompt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'dialoguePrompt is required when speakerMode is dialogue',
+        path: ['dialoguePrompt'],
+      });
+    }
     if (section.speakerMode === 'instructor_solo' && section.dialogueReason !== null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -257,13 +305,20 @@ const explanationSectionSchema = z
         path: ['dialogueReason'],
       });
     }
+    if (section.speakerMode === 'instructor_solo' && section.dialoguePrompt !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'dialoguePrompt must be null when speakerMode is instructor_solo',
+        path: ['dialoguePrompt'],
+      });
+    }
   });
 export const explanationConversationPlanSchema = z.object({
-    mode: z.literal('EXPLANATION'),
-    version: z.string(),
-    title: z.string(),
-    sections: z.array(explanationSectionSchema).min(1),
-  });
+  mode: z.literal('EXPLANATION'),
+  version: z.string(),
+  title: z.string(),
+  sections: z.array(explanationSectionSchema).min(1),
+});
 const explanationTurnSchema = z.object({
   id: z.string(),
   speaker: z.enum(['HOST', 'INSTRUCTOR', 'CO_HOST']),
@@ -272,6 +327,16 @@ const explanationTurnSchema = z.object({
   sequence: z.number().int().nonnegative(),
   role: dialogueRoleSchema.nullable(),
   delivery: deliverySchema,
+});
+export const podcastGenerationStateSchema = z.object({
+  previousSectionClosing: z.string(),
+  terminology: z.array(z.object({ term: z.string(), meaning: z.string() })),
+  examplesAlreadyUsed: z.array(z.string()),
+  speakerContext: z.string(),
+});
+export const explanationSectionGenerationSchema = z.object({
+  turns: z.array(explanationTurnSchema).min(1),
+  state: podcastGenerationStateSchema,
 });
 export const explanationScriptSchema = z
   .object({
