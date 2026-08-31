@@ -14,6 +14,7 @@ export const NOTION_DATABASE_PROPERTIES = {
     'App ID': richText,
     Goal: richText,
     Status: select,
+    'Idempotency Key': richText,
     'Preferred Days': { multi_select: {} },
     'Session Duration': { number: { format: 'number' } },
     'Current Topic ID': richText,
@@ -40,13 +41,74 @@ export const NOTION_DATABASE_PROPERTIES = {
   },
 } as const;
 
+export const NOTION_SELECT_OPTIONS = {
+  plans: {
+    Status: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
+    'Preferred Days': [
+      'MONDAY',
+      'TUESDAY',
+      'WEDNESDAY',
+      'THURSDAY',
+      'FRIDAY',
+      'SATURDAY',
+      'SUNDAY',
+    ],
+  },
+  records: {
+    'Record Type': ['TOPIC', 'SESSION'],
+    Status: [
+      'PLANNED',
+      'GENERATING',
+      'READY',
+      'COMPLETED',
+      'FAILED',
+      'SKIPPED',
+      'CONTENT_PENDING',
+      'CONTENT_READY',
+      'CONVERSATION_PLAN_PENDING',
+      'CONVERSATION_PLAN_READY',
+      'SCRIPT_PENDING',
+      'SCRIPT_READY',
+      'DIALOGUE_POLISH_PENDING',
+      'DIALOGUE_READY',
+      'AUDIO_PENDING',
+      'AUDIO_GENERATING',
+      'AUDIO_READY',
+      'UPLOAD_PENDING',
+      'UPLOADED',
+    ],
+    Level: ['FOUNDATION', 'CORE', 'INTERMEDIATE', 'ADVANCED', 'APPLIED'],
+  },
+} as const;
+
+export type NotionSelectOption = { id?: string; name: string; color?: string };
+
+export function mergeSelectOptions(
+  existing: NotionSelectOption[],
+  desired: readonly string[],
+): NotionSelectOption[] {
+  const byName = new Map(existing.map((option) => [option.name, option]));
+  const merged = [...existing];
+  for (const name of desired) {
+    if (!byName.has(name)) merged.push({ name });
+  }
+  return merged;
+}
+
 type DatabaseKind = keyof typeof NOTION_DATABASE_NAMES;
 type SearchDatabase = {
   id: string;
   object: 'database';
   parent: { type: string; page_id?: string };
   title: Array<{ plain_text: string }>;
-  properties: Record<string, { type: string }>;
+  properties: Record<
+    string,
+    {
+      type: string;
+      select?: { options?: NotionSelectOption[] };
+      multi_select?: { options?: NotionSelectOption[] };
+    }
+  >;
 };
 
 /** Creates and repairs the application's Notion databases below one shared page. */
@@ -65,8 +127,14 @@ export class NotionSchemaProvisioner {
 
   private async ensureDatabase(kind: DatabaseKind): Promise<string> {
     const existing = await this.findDatabase(NOTION_DATABASE_NAMES[kind]);
-    if (!existing) return this.createDatabase(kind);
+    const databaseId = existing
+      ? await this.repairDatabase(kind, existing)
+      : await this.createDatabase(kind);
+    await this.ensureSelectOptions(kind, databaseId);
+    return databaseId;
+  }
 
+  private async repairDatabase(kind: DatabaseKind, existing: SearchDatabase): Promise<string> {
     const desired = NOTION_DATABASE_PROPERTIES[kind];
     const missing = Object.fromEntries(
       Object.entries(desired).filter(([name]) => !(name in existing.properties)),
@@ -78,6 +146,45 @@ export class NotionSchemaProvisioner {
       });
     }
     return existing.id;
+  }
+
+  private async ensureSelectOptions(kind: DatabaseKind, databaseId: string): Promise<void> {
+    const database = (await this.client.databases.retrieve({
+      database_id: databaseId,
+    })) as SearchDatabase;
+    const desiredOptions = NOTION_SELECT_OPTIONS[kind];
+    const updates: Record<string, object> = {};
+
+    for (const propertyName of Object.keys(desiredOptions) as Array<
+      keyof (typeof NOTION_SELECT_OPTIONS)[typeof kind]
+    >) {
+      const optionNames = desiredOptions[propertyName];
+      const property = database.properties[propertyName as string];
+      if (!property) continue;
+
+      if (property.type === 'select') {
+        const existing = property.select?.options ?? [];
+        const merged = mergeSelectOptions(existing, optionNames);
+        if (merged.length !== existing.length) {
+          updates[propertyName] = { select: { options: merged } };
+        }
+      }
+
+      if (property.type === 'multi_select') {
+        const existing = property.multi_select?.options ?? [];
+        const merged = mergeSelectOptions(existing, optionNames);
+        if (merged.length !== existing.length) {
+          updates[propertyName] = { multi_select: { options: merged } };
+        }
+      }
+    }
+
+    if (Object.keys(updates).length) {
+      await this.client.databases.update({
+        database_id: databaseId,
+        properties: updates as never,
+      });
+    }
   }
 
   private async findDatabase(title: string): Promise<SearchDatabase | undefined> {

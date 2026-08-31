@@ -6,7 +6,8 @@ import {
   StudySessionRepository,
   StudyTopicRepository,
 } from '../application/ports';
-import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { StudyPlan, StudyPlanProvisioningStatus, StudyPlanTopic, StudySession } from '../domain/models';
+import { goalsMatch } from '../domain/idempotency';
 import { NotionSchemaProvisioner } from './notion-schema';
 
 type Page = { id: string; url: string; properties: Record<string, unknown> };
@@ -36,17 +37,30 @@ export class NotionRepository
     });
     await this.ready;
   }
-  async create(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<StudyPlan> {
+  async createPending(plan: StudyPlan): Promise<StudyPlan> {
     await this.ensureReady();
     const page = await this.client.pages.create({
       parent: { database_id: this.plansDb },
       properties: this.planProperties(plan) as never,
-      children: this.blocks([`Goal: ${plan.goal}`, plan.overview]),
+      children: this.blocks([`Goal: ${plan.goal}`, 'Plan generation in progress…']),
     });
     plan.notionPageId = page.id;
     plan.notionUrl = 'url' in page ? page.url : undefined;
+    return plan;
+  }
+  async finalizePlan(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<StudyPlan> {
+    await this.ensureReady();
+    if (!plan.notionPageId) throw new Error('Study plan has no Notion page');
+    await this.client.pages.update({
+      page_id: plan.notionPageId,
+      properties: this.planProperties(plan) as never,
+    });
+    await this.client.blocks.children.append({
+      block_id: plan.notionPageId,
+      children: this.blocks([plan.overview]),
+    });
     for (const topic of topics) await this.createTopic(topic);
-    await this.createWeekPages(page.id, topics);
+    await this.createWeekPages(plan.notionPageId, topics);
     return plan;
   }
   async findAll(): Promise<StudyPlan[]> {
@@ -58,6 +72,33 @@ export class NotionRepository
     return (
       await this.query(this.plansDb, { property: 'Status', select: { equals: 'ACTIVE' } })
     ).map((page) => this.planFromPage(page));
+  }
+  async findByIdempotencyKey(key: string): Promise<StudyPlan | null> {
+    await this.ensureReady();
+    const page = (
+      await this.query(this.plansDb, {
+        property: 'Idempotency Key',
+        rich_text: { equals: key },
+      })
+    )[0];
+    return page ? this.planFromPage(page) : null;
+  }
+  async findActiveByGoal(goal: string): Promise<StudyPlan | null> {
+    await this.ensureReady();
+    const active = (
+      await this.query(this.plansDb, { property: 'Status', select: { equals: 'ACTIVE' } })
+    ).map((page) => this.planFromPage(page));
+    return active.find((plan) => goalsMatch(plan.goal, goal)) ?? null;
+  }
+  async findInFlightByGoal(goal: string): Promise<StudyPlan | null> {
+    await this.ensureReady();
+    const inFlight = (await this.query(this.plansDb))
+      .map((page) => this.planFromPage(page))
+      .filter((plan) => {
+        const status = this.resolveProvisioningStatus(plan);
+        return status === 'CREATING' || status === 'GENERATING';
+      });
+    return inFlight.find((plan) => goalsMatch(plan.goal, goal)) ?? null;
   }
   async findById(id: string): Promise<StudyPlan | null> {
     await this.ensureReady();
@@ -72,6 +113,32 @@ export class NotionRepository
       page_id: plan.notionPageId,
       properties: this.planProperties(plan) as never,
     });
+  }
+  async archivePlan(id: string): Promise<void> {
+    const plan = await this.findById(id);
+    if (!plan) return;
+    const topics = await this.findTopicsByPlan(id);
+    for (const topic of topics) {
+      if (topic.notionPageId) {
+        await this.client.pages.update({ page_id: topic.notionPageId, archived: true });
+      }
+    }
+    if (plan.notionPageId) {
+      await this.client.pages.update({ page_id: plan.notionPageId, archived: true });
+    }
+  }
+  async findTopicsByPlan(planId: string): Promise<StudyPlanTopic[]> {
+    await this.ensureReady();
+    return (
+      await this.query(this.sessionsDb, {
+        and: [
+          { property: 'Record Type', select: { equals: 'TOPIC' } },
+          { property: 'Plan ID', rich_text: { equals: planId } },
+        ],
+      })
+    )
+      .map((page) => this.topicFromPage(page))
+      .sort((a, b) => a.week - b.week || a.sequence - b.sequence);
   }
   async findPlanned(planId: string): Promise<StudyPlanTopic[]> {
     await this.ensureReady();
@@ -257,6 +324,7 @@ export class NotionRepository
       'App ID': this.text(p.id),
       Goal: this.text(p.goal),
       Status: { select: { name: p.status } },
+      'Idempotency Key': this.text(p.idempotencyKey),
       'Preferred Days': { multi_select: p.preferredDays.map((name) => ({ name })) },
       'Session Duration': { number: p.targetSessionMinutes },
       'Current Topic ID': this.text(p.currentTopicId ?? ''),
@@ -304,7 +372,15 @@ export class NotionRepository
     return JSON.parse(property.rich_text?.map((part) => part.plain_text).join('') ?? '{}') as T;
   }
   private planFromPage(p: Page): StudyPlan {
-    return { ...this.metadata<StudyPlan>(p), notionPageId: p.id, notionUrl: p.url };
+    const plan = { ...this.metadata<StudyPlan>(p), notionPageId: p.id, notionUrl: p.url };
+    plan.provisioningStatus = this.resolveProvisioningStatus(plan);
+    return plan;
+  }
+  private resolveProvisioningStatus(plan: StudyPlan): StudyPlanProvisioningStatus {
+    if (plan.provisioningStatus) return plan.provisioningStatus;
+    if (plan.status === 'DRAFT') return 'CREATING';
+    if (plan.status === 'ACTIVE') return 'READY';
+    return 'FAILED';
   }
   private topicFromPage(p: Page): StudyPlanTopic {
     const topic = { ...this.metadata<StudyPlanTopic>(p), notionPageId: p.id };
