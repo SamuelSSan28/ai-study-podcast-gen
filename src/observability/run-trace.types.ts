@@ -4,6 +4,7 @@ export interface OpenAiCallRecord {
   model: string;
   name: string;
   inputTokens?: number;
+  cachedInputTokens?: number;
   outputTokens?: number;
   webSearch: boolean;
   timestamp: string;
