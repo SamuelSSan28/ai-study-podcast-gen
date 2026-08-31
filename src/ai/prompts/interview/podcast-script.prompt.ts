@@ -1,17 +1,27 @@
-import { InterviewConversationPlan, StudyContent } from '../../../domain/models';
+import { InterviewConversationPlan, StudyContent, StudyPlanTopic } from '../../../domain/models';
+import { NOTION_SCRIPT_RULES } from '../../../persistence/notion-format.contract';
+import {
+  formatScriptSourceContext,
+  SCRIPT_TRANSFORM_RULES,
+} from '../scope-discipline';
 
-export const INTERVIEW_SCRIPT_PROMPT_VERSION = 'podcast-script.interview.v3';
+export const INTERVIEW_SCRIPT_PROMPT_VERSION = 'podcast-script.interview.v6';
 
 export function buildInterviewScriptPrompt(
+  topic: StudyPlanTopic,
   content: StudyContent,
   plan: InterviewConversationPlan,
 ): string {
-  return `Transforme este plano em uma entrevista técnica natural entre INTERVIEWER e CANDIDATE.
+  return `Transform this plan into a natural technical interview between INTERVIEWER and CANDIDATE.
 
-O entrevistador faz perguntas concisas, desafia premissas, revela restrições progressivamente e aprofunda a resposta anterior em vez de apenas aprovar. O candidato faz perguntas de esclarecimento, pensa em voz alta, justifica trade-offs e ocasionalmente revisa uma decisão anterior. Use português brasileiro falado, natural e conciso.
+The interviewer asks concise questions, challenges assumptions, reveals constraints progressively, and deepens the previous answer instead of merely approving. The candidate asks clarifying questions, thinks aloud, justifies trade-offs, and occasionally revises an earlier decision. Use natural spoken English, concise and clear.
 
-Evite trivia, respostas de livro-texto, monólogos longos, respostas perfeitas imediatas e referências a prompts, lições, documentos ou material de estudo. Retorne falas estruturadas com ids estáveis, sequência zero-based, ids de seção, direção de entrega e estimativa de duração.
+${SCRIPT_TRANSFORM_RULES}
 
-Fonte técnica: ${JSON.stringify(content)}
-Plano da entrevista: ${JSON.stringify(plan)}`;
+Avoid trivia, textbook answers, long monologues, immediate perfect answers, and references to prompts, lessons, documents, or study material. Return structured turns with stable ids, zero-based sequence, section ids, delivery direction, and duration estimate.
+
+${NOTION_SCRIPT_RULES}
+
+${formatScriptSourceContext(topic, content)}
+Interview plan: ${JSON.stringify(plan)}`;
 }

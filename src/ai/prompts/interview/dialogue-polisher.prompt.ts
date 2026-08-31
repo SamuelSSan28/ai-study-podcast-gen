@@ -1,7 +1,8 @@
 import { RawPodcastScript } from '../../../domain/models';
+import { NOTION_POLISHER_PUBLISH_RULES } from '../../../persistence/notion-format.contract';
 
-export const INTERVIEW_POLISHER_PROMPT_VERSION = 'dialogue-polisher.interview.v2';
+export const INTERVIEW_POLISHER_PROMPT_VERSION = 'dialogue-polisher.interview.v4';
 
 export function buildInterviewPolisherPrompt(script: RawPodcastScript): string {
-  return `Polir esta entrevista tecnicamente correta para português brasileiro falado natural. Preserve significado técnico, perguntas e desafios, revelações de restrições, identidades dos falantes, ids, sequência e ids de seção. Melhore respostas concisas do candidato, follow-ups naturais, reações, ritmo, contrações e continuidade. Reduza linguagem acadêmica, confirmações repetidas, monólogos longos e Q&A robótico. Não introduza fatos técnicos novos. Retorne o roteiro estruturado completo.\n${JSON.stringify(script)}`;
+  return `Polish this technically correct interview for natural spoken English. Preserve technical meaning, questions and challenges, constraint reveals, speaker identities, ids, sequence, and section ids. Improve concise candidate answers, natural follow-ups, reactions, pacing, contractions, and continuity. Reduce academic language, repeated confirmations, long monologues, and robotic Q&A. Do not introduce new technical facts. ${NOTION_POLISHER_PUBLISH_RULES} Return the complete structured script.\n${JSON.stringify(script)}`;
 }

@@ -12,8 +12,13 @@ import {
   AudioStorage,
 } from './ports';
 import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { STUDY_DEFAULTS } from '../config/study-defaults';
 import { enrichArticleOutline, seedArticleOutline } from '../domain/article-outline';
-import { selectNextTopic } from '../domain/next-topic-policy';
+import {
+  isWaitingForPrerequisites,
+  selectNextTopic,
+} from '../domain/next-topic-policy';
+import { SessionGenerationSkippedError } from '../domain/session-generation-skipped.error';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { LocalAudioService } from '../audio/local-audio.service';
 import { DiscordNotifier } from '../notifications/discord.notifier';
@@ -23,7 +28,7 @@ import { OpenAiConversationPlanner } from '../conversation/conversation-planner'
 import { OpenAiPodcastScriptGenerator } from '../conversation/podcast-script-generator';
 import { OpenAiDialoguePolisher } from '../conversation/dialogue-polisher';
 import { PodcastScriptValidator } from '../conversation/podcast-script.validator';
-import { ConfigurableAudioDirector } from '../audio/audio-director';
+import { AudioDirector, ConfigurableAudioDirector } from '../audio/audio-director';
 import { TurnBasedTtsService } from '../audio/turn-based-tts.service';
 import { FfmpegAudioComposer } from '../audio/audio-composer';
 import { INTERVIEW_PLANNER_PROMPT_VERSION } from '../ai/prompts/interview/conversation-planner.prompt';
@@ -32,6 +37,9 @@ import { INTERVIEW_POLISHER_PROMPT_VERSION } from '../ai/prompts/interview/dialo
 import { DISCUSSION_PLANNER_PROMPT_VERSION } from '../ai/prompts/discussion/conversation-planner.prompt';
 import { DISCUSSION_SCRIPT_PROMPT_VERSION } from '../ai/prompts/discussion/podcast-script.prompt';
 import { DISCUSSION_POLISHER_PROMPT_VERSION } from '../ai/prompts/discussion/dialogue-polisher.prompt';
+import { EXPLANATION_PLANNER_PROMPT_VERSION } from '../ai/prompts/explanation/lesson-planner.prompt';
+import { EXPLANATION_SCRIPT_PROMPT_VERSION } from '../ai/prompts/explanation/lesson-script.prompt';
+import { EXPLANATION_POLISHER_PROMPT_VERSION } from '../ai/prompts/explanation/script-polisher.prompt';
 import { RunTraceService } from '../observability/run-trace.service';
 import { EvalConfig } from '../observability/eval-config';
 
@@ -53,7 +61,7 @@ export class GenerateNextStudySessionUseCase {
     private readonly scriptGenerator: OpenAiPodcastScriptGenerator,
     private readonly polisher: OpenAiDialoguePolisher,
     private readonly validator: PodcastScriptValidator,
-    private readonly director: ConfigurableAudioDirector,
+    @Inject(ConfigurableAudioDirector) private readonly director: AudioDirector,
     private readonly tts: TurnBasedTtsService,
     private readonly composer: FfmpegAudioComposer,
     @Optional() private readonly trace?: RunTraceService,
@@ -68,7 +76,7 @@ export class GenerateNextStudySessionUseCase {
       mode: this.evalConfig.mode,
     });
     const mode =
-      requestedMode ?? this.config.get<PodcastMode>('DEFAULT_PODCAST_MODE', 'DISCUSSION');
+      requestedMode ?? STUDY_DEFAULTS.podcast.defaultMode;
     const plan = await this.plans.findById(planId);
     if (!plan || plan.status !== 'ACTIVE') throw new Error('Active study plan not found');
     const candidates = await this.topics.findPlanned(planId);
@@ -96,10 +104,14 @@ export class GenerateNextStudySessionUseCase {
     }
     this.trace?.endStage('topic_selection', { selectedTopicId: selection.topic?.id });
     const topic = selection.topic;
-    if (!topic)
+    if (!topic) {
+      if (isWaitingForPrerequisites(selection)) {
+        throw new SessionGenerationSkippedError(planId, selection.rejected.length);
+      }
       throw new Error(
         `No eligible unique topic remains (${selection.rejected.length} roadmap topics rejected)`,
       );
+    }
     return this.beginSessionForTopic(plan, topic, mode);
   }
 
@@ -110,7 +122,7 @@ export class GenerateNextStudySessionUseCase {
       mode: this.evalConfig.mode,
     });
     const mode =
-      requestedMode ?? this.config.get<PodcastMode>('DEFAULT_PODCAST_MODE', 'DISCUSSION');
+      requestedMode ?? STUDY_DEFAULTS.podcast.defaultMode;
     const plan = await this.plans.findById(planId);
     if (!plan || plan.status !== 'ACTIVE') throw new Error('Active study plan not found');
 
@@ -173,14 +185,9 @@ export class GenerateNextStudySessionUseCase {
       conversationModel: this.models.conversationPlan,
       scriptModel: this.models.podcast,
       polishModel: this.models.polish,
-      conversationPlanVersion:
-        mode === 'INTERVIEW' ? INTERVIEW_PLANNER_PROMPT_VERSION : DISCUSSION_PLANNER_PROMPT_VERSION,
-      scriptPromptVersion:
-        mode === 'INTERVIEW' ? INTERVIEW_SCRIPT_PROMPT_VERSION : DISCUSSION_SCRIPT_PROMPT_VERSION,
-      polisherPromptVersion:
-        mode === 'INTERVIEW'
-          ? INTERVIEW_POLISHER_PROMPT_VERSION
-          : DISCUSSION_POLISHER_PROMPT_VERSION,
+      conversationPlanVersion: resolveConversationPlanVersion(mode),
+      scriptPromptVersion: resolveScriptPromptVersion(mode),
+      polisherPromptVersion: resolvePolisherPromptVersion(mode),
       retryCount: 0,
     };
     await this.sessions.createSession(session);
@@ -288,7 +295,7 @@ export class GenerateNextStudySessionUseCase {
         await this.topics.update(topic);
         await this.sessions.updateSession(session);
       }
-      const targetMinutes = Math.min(plan.targetSessionMinutes ?? 45, 30);
+      const targetMinutes = plan.targetSessionMinutes ?? 45;
       if (!session.conversationPlan) {
         session.stage = 'CONVERSATION_PLAN_PENDING';
         await this.sessions.updateSession(session);
@@ -319,6 +326,7 @@ export class GenerateNextStudySessionUseCase {
         await this.sessions.updateSession(session);
         this.trace?.startStage('script');
         session.rawScript = await this.scriptGenerator.generate({
+          topic,
           technicalContent: session.content,
           conversationPlan: session.conversationPlan,
           mode: session.podcastMode,
@@ -432,4 +440,22 @@ export class GenerateNextStudySessionUseCase {
   private hash(value: unknown): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }
+}
+
+function resolveConversationPlanVersion(mode: PodcastMode): string {
+  if (mode === 'INTERVIEW') return INTERVIEW_PLANNER_PROMPT_VERSION;
+  if (mode === 'EXPLANATION') return EXPLANATION_PLANNER_PROMPT_VERSION;
+  return DISCUSSION_PLANNER_PROMPT_VERSION;
+}
+
+function resolveScriptPromptVersion(mode: PodcastMode): string {
+  if (mode === 'INTERVIEW') return INTERVIEW_SCRIPT_PROMPT_VERSION;
+  if (mode === 'EXPLANATION') return EXPLANATION_SCRIPT_PROMPT_VERSION;
+  return DISCUSSION_SCRIPT_PROMPT_VERSION;
+}
+
+function resolvePolisherPromptVersion(mode: PodcastMode): string {
+  if (mode === 'INTERVIEW') return INTERVIEW_POLISHER_PROMPT_VERSION;
+  if (mode === 'EXPLANATION') return EXPLANATION_POLISHER_PROMPT_VERSION;
+  return DISCUSSION_POLISHER_PROMPT_VERSION;
 }

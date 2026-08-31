@@ -40,6 +40,7 @@ import { QueueService } from '../queue/queue.service';
 enum PodcastModeParam {
   INTERVIEW = 'INTERVIEW',
   DISCUSSION = 'DISCUSSION',
+  EXPLANATION = 'EXPLANATION',
 }
 
 @Controller('study-plans')

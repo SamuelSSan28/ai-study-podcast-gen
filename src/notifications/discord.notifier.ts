@@ -125,6 +125,21 @@ export class DiscordNotifier {
     );
   }
 
+  async notifySessionGenerationSkipped(plan: StudyPlan, waitingTopicCount: number): Promise<void> {
+    await this.sendSuccess(
+      [
+        '⏭️ **Session generation skipped**',
+        '',
+        `**${plan.title}**`,
+        `No completed topics yet — waiting for prerequisites before generating the next episode.`,
+        waitingTopicCount > 0 ? `${waitingTopicCount} roadmap topics are blocked.` : '',
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+
   async notifyTopicStarted(
     plan: StudyPlan,
     topic: StudyPlanTopic,
@@ -184,6 +199,7 @@ export class DiscordNotifier {
     }
 
     if (session.notionUrl) lines.push('', `📖 Notion: ${session.notionUrl}`);
+    else if (topic.notionUrl) lines.push('', `📖 Notion: ${topic.notionUrl}`);
     lines.push(
       '',
       `📊 Dashboard: ${this.dashboardUrl(plan.id, session.id)}`,
@@ -256,11 +272,12 @@ export class DiscordNotifier {
         ? ''
         : `\n🎙 Listen: ${session.audioUrl}${session.audioDownloadUrl ? `\n⬇️ Download: ${session.audioDownloadUrl}` : ''}`;
 
+    const readUrl = topic.notionUrl ?? session.notionUrl;
     return (
       `🎧 **New Backend Study Session Ready**\n\n` +
       `**${session.title}**\n` +
       `Week ${String(topic.week).padStart(2, '0')} · Session ${String(topic.sequence).padStart(2, '0')}\n\n` +
-      `📖 Read: ${session.notionUrl}` +
+      (readUrl ? `📖 Read: ${readUrl}` : '') +
       listenLine +
       localNotice +
       `\n\nFocus: ${topic.tags.join(' · ')}`

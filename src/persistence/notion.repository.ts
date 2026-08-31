@@ -31,9 +31,9 @@ export class NotionRepository
     await this.ensureReady();
   }
   private async ensureReady(): Promise<void> {
-    this.ready ??= this.provisioner.provision().then(({ plans, records }) => {
+    this.ready ??= this.provisioner.provision().then(({ plans }) => {
       this.plansDb = plans;
-      this.sessionsDb = records;
+      this.sessionsDb = plans;
     });
     await this.ready;
   }
@@ -59,7 +59,7 @@ export class NotionRepository
       block_id: plan.notionPageId,
       children: this.blocks([
         plan.overview,
-        'Currículo',
+        'Curriculum',
         ...topics
           .slice()
           .sort((a, b) => a.order - b.order)

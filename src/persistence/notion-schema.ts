@@ -2,7 +2,7 @@ import { Client } from '@notionhq/client';
 
 export const NOTION_DATABASE_NAMES = {
   plans: 'Study Plans',
-  records: 'Topics',
+  planTopics: 'Topics',
 } as const;
 
 const richText = { rich_text: {} } as const;
@@ -22,10 +22,9 @@ export const NOTION_DATABASE_PROPERTIES = {
     'Current Topic ID': richText,
     Metadata: richText,
   },
-  records: {
+  planTopics: {
     Name: { title: {} },
     'App ID': richText,
-    'Plan ID': richText,
     Slug: richText,
     'Generation Key': richText,
     Metadata: richText,
@@ -59,7 +58,7 @@ export const NOTION_SELECT_OPTIONS = {
       'SUNDAY',
     ],
   },
-  records: {
+  planTopics: {
     'Record Type': ['TOPIC', 'SESSION'],
     Status: [
       'Planejado',
@@ -77,6 +76,22 @@ export const NOTION_SELECT_OPTIONS = {
 } as const;
 
 export type NotionSelectOption = { id?: string; name: string; color?: string };
+
+type DatabaseKind = keyof typeof NOTION_DATABASE_NAMES;
+type SearchDatabase = {
+  id: string;
+  object: 'database';
+  parent: { type: string; page_id?: string };
+  title: Array<{ plain_text: string }>;
+  properties: Record<
+    string,
+    {
+      type: string;
+      select?: { options?: NotionSelectOption[] };
+      multi_select?: { options?: NotionSelectOption[] };
+    }
+  >;
+};
 
 /**
  * Merges desired select options into existing ones.
@@ -120,34 +135,26 @@ export function selectOptionsNeedUpdate(
   return merged.some((option) => !existingKeys.has(`${option.id ?? ''}:${option.name}`));
 }
 
-type DatabaseKind = keyof typeof NOTION_DATABASE_NAMES;
-type SearchDatabase = {
-  id: string;
-  object: 'database';
-  parent: { type: string; page_id?: string };
-  title: Array<{ plain_text: string }>;
-  properties: Record<
-    string,
-    {
-      type: string;
-      select?: { options?: NotionSelectOption[] };
-      multi_select?: { options?: NotionSelectOption[] };
-    }
-  >;
-};
-
-/** Creates and repairs the application's Notion databases below one shared page. */
+/** Creates and repairs the global Study Plans database below the parent page. */
 export class NotionSchemaProvisioner {
   constructor(
     private readonly client: Client,
     private readonly parentPageId: string,
   ) {}
 
-  async provision(): Promise<{ plans: string; records: string }> {
-    return {
-      plans: await this.ensureDatabase('plans'),
-      records: await this.ensureDatabase('records'),
-    };
+  async provision(): Promise<{ plans: string }> {
+    return { plans: await this.ensureDatabase('plans') };
+  }
+
+  /** Ensures a per-plan Topics database exists inline on the plan page. */
+  async ensurePlanTopicsDatabase(planPageId: string): Promise<string> {
+    const existing = await this.findChildDatabase(planPageId, NOTION_DATABASE_NAMES.planTopics);
+    const databaseId = existing
+      ? await this.repairDatabase('planTopics', existing)
+      : await this.createPlanTopicsDatabase(planPageId);
+    await this.ensurePlanTopicsDatabaseInline(databaseId);
+    await this.ensureSelectOptions('planTopics', databaseId);
+    return databaseId;
   }
 
   private async ensureDatabase(kind: DatabaseKind): Promise<string> {
@@ -235,6 +242,29 @@ export class NotionSchemaProvisioner {
     return undefined;
   }
 
+  private async findChildDatabase(
+    parentPageId: string,
+    title: string,
+  ): Promise<SearchDatabase | undefined> {
+    let cursor: string | undefined;
+    do {
+      const response = await this.client.blocks.children.list({
+        block_id: parentPageId,
+        start_cursor: cursor,
+      });
+      for (const block of response.results) {
+        if (!('type' in block) || block.type !== 'child_database') continue;
+        const database = (await this.client.databases.retrieve({
+          database_id: block.id,
+        })) as SearchDatabase;
+        const blockTitle = database.title.map((part) => part.plain_text).join('');
+        if (blockTitle === title) return database;
+      }
+      cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+    } while (cursor);
+    return undefined;
+  }
+
   private async createDatabase(kind: DatabaseKind): Promise<string> {
     const database = await this.client.databases.create({
       parent: { type: 'page_id', page_id: this.parentPageId },
@@ -242,5 +272,27 @@ export class NotionSchemaProvisioner {
       properties: NOTION_DATABASE_PROPERTIES[kind],
     } as never);
     return database.id;
+  }
+
+  private async createPlanTopicsDatabase(planPageId: string): Promise<string> {
+    const database = await this.client.databases.create({
+      parent: { type: 'page_id', page_id: planPageId },
+      title: [{ type: 'text', text: { content: NOTION_DATABASE_NAMES.planTopics } }],
+      is_inline: true,
+      properties: NOTION_DATABASE_PROPERTIES.planTopics,
+    } as never);
+    return database.id;
+  }
+
+  /** Topics should render inside the plan page, not as a separate sub-page. */
+  private async ensurePlanTopicsDatabaseInline(databaseId: string): Promise<void> {
+    const database = (await this.client.databases.retrieve({
+      database_id: databaseId,
+    })) as { is_inline?: boolean };
+    if (database.is_inline === true) return;
+    await this.client.databases.update({
+      database_id: databaseId,
+      is_inline: true,
+    } as never);
   }
 }

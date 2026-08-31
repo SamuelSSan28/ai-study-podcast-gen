@@ -5,6 +5,7 @@ import { GenerateNextStudySessionUseCase } from '../application/generate-next-se
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { AiModelConfig } from '../config/ai-model.config';
 import { LocalAudioService } from '../audio/local-audio.service';
+import { KokoroTtsClient } from '../audio/kokoro-tts.client';
 import { DiscordNotifier } from '../notifications/discord.notifier';
 import { OpenAiConversationPlanner } from '../conversation/conversation-planner';
 import { OpenAiPodcastScriptGenerator } from '../conversation/podcast-script-generator';
@@ -29,6 +30,7 @@ export async function createEvalModule(
       AiModelConfig,
       { provide: RunTraceService, useValue: trace },
       LocalAudioService,
+      KokoroTtsClient,
       EvalAudioStorage,
       { provide: AUDIO_STORAGE, useExisting: EvalAudioStorage },
       { provide: PLAN_REPOSITORY, useValue: repo },

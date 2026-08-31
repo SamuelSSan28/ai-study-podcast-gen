@@ -198,7 +198,7 @@ curl -s -X POST \
   "${BASE_URL}/study-plans/${PLAN_ID}/generate-next?token=${TOKEN}&mode=INTERVIEW" | jq .
 ```
 
-Sem `mode`, usa o valor de `DEFAULT_PODCAST_MODE` do `.env`.
+Sem `mode`, usa o modo didático `EXPLANATION` (formato e extensão definidos pela IA conforme o tópico).
 
 > A geração pode levar vários minutos (pesquisa, roteiro, TTS, composição de áudio). Consulte o endpoint de sessão para acompanhar o `stage`.
 

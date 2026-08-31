@@ -1,5 +1,9 @@
 import { StudyPlanTopic } from '../src/domain/models';
-import { selectNextTopic } from '../src/domain/next-topic-policy';
+import {
+  isBlockedByPrerequisites,
+  isWaitingForPrerequisites,
+  selectNextTopic,
+} from '../src/domain/next-topic-policy';
 
 function topic(overrides: Partial<StudyPlanTopic> = {}): StudyPlanTopic {
   return {
@@ -79,5 +83,20 @@ describe('next topic policy', () => {
       topicId: 'first',
       reason: 'SEMANTIC_DUPLICATE',
     });
+  });
+
+  it('detects when all candidates are blocked by prerequisites', async () => {
+    const completed = topic({ status: 'READY', title: 'Done Topic', slug: 'done-topic' });
+    const blocked = topic({
+      id: 'blocked',
+      sequence: 2,
+      title: 'Next Topic',
+      prerequisites: ['Missing Prerequisite'],
+    });
+    const result = await selectNextTopic([blocked], [completed], jest.fn());
+
+    expect(isWaitingForPrerequisites(result)).toBe(true);
+    expect(isBlockedByPrerequisites([blocked], [completed])).toBe(true);
+    expect(isBlockedByPrerequisites([topic()], [])).toBe(false);
   });
 });

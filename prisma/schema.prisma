@@ -23,6 +23,7 @@ model StudyPlan {
   provisioningError    String?
   overview             String   @default("")
   notionPageId         String?
+  notionTopicsDbId     String?
   notionUrl            String?
   targetSessionMinutes Int
   currentTopicId       String?
@@ -62,7 +63,8 @@ model StudySession {
   payload       String
   createdAt     DateTime
   completedAt   DateTime?
-  notionPageId  String?
+  notionPageId       String?
+  notionScriptPageId String?
 
   @@index([studyPlanId])
 }

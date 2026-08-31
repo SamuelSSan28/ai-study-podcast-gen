@@ -13,12 +13,22 @@ export const envSchema = z
       .transform((value) => value === 'true'),
     LOCAL_PROGRESS_CRON: z.string().default('0 */12 * * *'),
     OPENAI_API_KEY: z.string().min(1),
-    OPENAI_CONTENT_MODEL: z.string().default('gpt-5.5'),
-    OPENAI_PLANNING_MODEL: z.string().default('gpt-5.5'),
-    OPENAI_VALIDATION_MODEL: z.string().default('gpt-5.5'),
-    OPENAI_CONVERSATION_PLAN_MODEL: z.string().default('gpt-5.5'),
-    OPENAI_SCRIPT_MODEL: z.string().default('gpt-5.5'),
-    OPENAI_POLISH_MODEL: z.string().default('gpt-5.5'),
+    ROADMAP_MODEL: z.string().optional(),
+    ARTICLE_MODEL: z.string().optional(),
+    SCRIPT_MODEL: z.string().optional(),
+    AUX_MODEL: z.string().optional(),
+    FALLBACK_MODEL: z.string().default('gpt-5.6-sol'),
+    OPENAI_PLANNING_MODEL: z.string().optional(),
+    OPENAI_CONTENT_MODEL: z.string().optional(),
+    OPENAI_VALIDATION_MODEL: z.string().optional(),
+    OPENAI_CONVERSATION_PLAN_MODEL: z.string().optional(),
+    OPENAI_SCRIPT_MODEL: z.string().optional(),
+    OPENAI_POLISH_MODEL: z.string().optional(),
+    TTS_PROVIDER: z.enum(['kokoro', 'openai']).default('kokoro'),
+    KOKORO_BASE_URL: z.string().url().default('http://127.0.0.1:8880/v1'),
+    KOKORO_TTS_SPEED: z.coerce.number().min(0.5).max(2).default(0.94),
+    KOKORO_INSTRUCTOR_SPEED: z.coerce.number().min(0.5).max(2).optional(),
+    KOKORO_CO_HOST_SPEED: z.coerce.number().min(0.5).max(2).optional(),
     OPENAI_TTS_MODEL: z.string().default('gpt-4o-mini-tts'),
     NOTION_API_KEY: z.string().min(1),
     NOTION_PARENT_PAGE_ID: z
@@ -39,7 +49,6 @@ export const envSchema = z
     PODCAST_CRON: z.string().default('0 12 * * 2,5'),
     PODCAST_TIMEZONE: z.string().default('America/Sao_Paulo'),
     PODCAST_TARGET_MINUTES: z.coerce.number().int().min(5).max(60).default(30),
-    DEFAULT_PODCAST_MODE: z.enum(['INTERVIEW', 'DISCUSSION']).default('DISCUSSION'),
     PODCAST_MAX_TURN_CHARACTERS: z.coerce.number().int().positive().default(1200),
     PODCAST_MIN_TURNS: z.coerce.number().int().positive().default(35),
     PODCAST_MAX_TURNS: z.coerce.number().int().positive().default(120),
@@ -62,6 +71,18 @@ export const envSchema = z
       .default('true')
       .transform((value) => value === 'true'),
   })
+  .transform((env) => ({
+    ...env,
+    ROADMAP_MODEL: env.ROADMAP_MODEL ?? env.OPENAI_PLANNING_MODEL ?? 'gpt-5.6-terra',
+    ARTICLE_MODEL: env.ARTICLE_MODEL ?? env.OPENAI_CONTENT_MODEL ?? 'gpt-5.6-terra',
+    SCRIPT_MODEL:
+      env.SCRIPT_MODEL ??
+      env.OPENAI_SCRIPT_MODEL ??
+      env.OPENAI_CONVERSATION_PLAN_MODEL ??
+      env.OPENAI_POLISH_MODEL ??
+      'gpt-5.6-terra',
+    AUX_MODEL: env.AUX_MODEL ?? env.OPENAI_VALIDATION_MODEL ?? 'gpt-5.6-luna',
+  }))
   .superRefine((env, ctx) => {
     if (env.AUDIO_STORAGE_BACKEND !== 'google_drive') return;
     for (const key of [

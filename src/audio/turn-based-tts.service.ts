@@ -28,7 +28,7 @@ export class TurnBasedTtsService {
     const states = [...prior];
     const segments: AudioSegment[] = [];
     for (const job of jobs) {
-      const filename = `${String(job.sequence + 1).padStart(4, '0')}-${job.speaker.toLowerCase()}.mp3`;
+      const filename = `${String(job.sequence + 1).padStart(4, '0')}-${job.speaker.toLowerCase()}-t${job.turnSequence}c${job.chunkIndex}.mp3`;
       const destination = path.join(directory, filename);
       const previous = states.find((state) => state.sequence === job.sequence);
       if (previous?.status !== 'READY' || !(await this.exists(destination))) {
@@ -41,7 +41,13 @@ export class TurnBasedTtsService {
         state.lastError = undefined;
         if (!previous) states.push(state);
         try {
-          await this.ai.generateSpeech(job.text, job.voice, job.instructions, destination);
+          await this.ai.generateSpeech(
+            job.text,
+            job.voice,
+            job.instructions,
+            destination,
+            job.speed,
+          );
           state.status = 'READY';
         } catch (error) {
           state.status = 'FAILED';

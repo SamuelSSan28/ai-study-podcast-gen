@@ -18,7 +18,7 @@ describe('OpenAiGateway research', () => {
     });
     const gateway = Object.create(OpenAiGateway.prototype) as OpenAiGateway;
     Object.assign(gateway, {
-      models: { content: 'gpt-5.5' },
+      models: { article: 'gpt-5.6-terra' },
       client: { responses: { parse } },
     });
 
@@ -31,7 +31,7 @@ describe('OpenAiGateway research', () => {
     expect(result.sources).toHaveLength(1);
     expect(parse).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'gpt-5.5',
+        model: 'gpt-5.6-terra',
         tools: [{ type: 'web_search' }],
         tool_choice: 'required',
       }),

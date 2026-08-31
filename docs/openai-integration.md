@@ -21,15 +21,19 @@ Models are configured per operation via environment variables (see [environment.
 
 | Operation | Env variable | Default |
 |-----------|--------------|---------|
-| Study plan generation | `OPENAI_PLANNING_MODEL` | `gpt-5.5` |
-| Web research + content | `OPENAI_CONTENT_MODEL` | `gpt-5.5` |
-| Duplicate classification | `OPENAI_VALIDATION_MODEL` | `gpt-5.5` |
-| Conversation plan | `OPENAI_CONVERSATION_PLAN_MODEL` | `gpt-5.5` |
-| Podcast script | `OPENAI_SCRIPT_MODEL` | `gpt-5.5` |
-| Dialogue polish | `OPENAI_POLISH_MODEL` | `gpt-5.5` |
-| TTS | `OPENAI_TTS_MODEL` | `gpt-4o-mini-tts` |
+| Goal normalization | `AUX_MODEL` | `gpt-5.6-luna` |
+| Study plan / roadmap | `ROADMAP_MODEL` | `gpt-5.6-terra` |
+| Web research + article | `ARTICLE_MODEL` | `gpt-5.6-terra` |
+| Duplicate classification | `AUX_MODEL` | `gpt-5.6-luna` |
+| Conversation plan, script, polish | `SCRIPT_MODEL` | `gpt-5.6-terra` |
+| TTS (local) | `TTS_PROVIDER=kokoro` | Kokoro-FastAPI |
+| TTS (OpenAI fallback) | `OPENAI_TTS_MODEL` | `gpt-4o-mini-tts` |
 
-`AiModelConfig` (`src/config/ai-model.config.ts`) reads these values at runtime. Model names are passed straight to the API — use models available to your account.
+On LLM failure the gateway retries once with the same model, then escalates to
+`FALLBACK_MODEL` (default `gpt-5.6-sol`).
+
+`AiModelConfig` (`src/config/ai-model.config.ts`) reads these values at runtime.
+Legacy `OPENAI_*_MODEL` variables still work as fallbacks.
 
 ## Core pattern: Responses API + Structured Outputs
 

@@ -80,17 +80,22 @@ export class NotionProcessor extends WorkerHost {
       for (const topic of result.topics) {
         if (topic.notionPageId) await this.topics.update(topic);
       }
-      if (result.plan.notionPageId) await this.plans.updatePlan(result.plan);
+      await this.plans.updatePlan(result.plan);
       return;
     }
     if (data.kind === 'session') {
       const session = await this.sessions.findSessionById(data.sessionId);
       if (!session) return;
+      const plan = await this.plans.findById(session.studyPlanId);
+      if (!plan) return;
       const topic = await this.topics.findTopicById(session.topicId);
-      const beforePageId = session.notionPageId;
-      const result = await this.notion.publishSession(session, topic ?? undefined);
-      if (result.session.notionPageId !== beforePageId) {
+      const beforeScriptPageId = session.notionScriptPageId;
+      const result = await this.notion.publishSession(plan, session, topic ?? undefined);
+      if (result.session.notionScriptPageId !== beforeScriptPageId) {
         await this.sessions.updateSession(result.session);
+      }
+      if (result.plan.notionTopicsDbId && result.plan.notionTopicsDbId !== plan.notionTopicsDbId) {
+        await this.plans.updatePlan(result.plan);
       }
       if (result.topic?.notionPageId) {
         await this.topics.update(result.topic);
@@ -100,7 +105,10 @@ export class NotionProcessor extends WorkerHost {
     if (data.kind === 'topic') {
       const topic = await this.topics.findTopicById(data.topicId);
       if (!topic) return;
-      await this.notion.publishTopicUpdate(topic);
+      const plan = await this.plans.findById(topic.studyPlanId);
+      if (!plan) return;
+      await this.notion.publishTopicUpdate(topic, plan);
+      if (topic.notionPageId) await this.topics.update(topic);
     }
   }
 }

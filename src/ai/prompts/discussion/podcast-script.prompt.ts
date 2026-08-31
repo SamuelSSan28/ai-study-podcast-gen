@@ -1,17 +1,27 @@
-import { DiscussionConversationPlan, StudyContent } from '../../../domain/models';
+import { DiscussionConversationPlan, StudyContent, StudyPlanTopic } from '../../../domain/models';
+import { NOTION_SCRIPT_RULES } from '../../../persistence/notion-format.contract';
+import {
+  formatScriptSourceContext,
+  SCRIPT_TRANSFORM_RULES,
+} from '../scope-discipline';
 
-export const DISCUSSION_SCRIPT_PROMPT_VERSION = 'podcast-script.discussion.v1';
+export const DISCUSSION_SCRIPT_PROMPT_VERSION = 'podcast-script.discussion.v4';
 
 export function buildDiscussionScriptPrompt(
+  topic: StudyPlanTopic,
   content: StudyContent,
   plan: DiscussionConversationPlan,
 ): string {
-  return `Transforme este plano em uma conversa natural de podcast técnico entre ENGINEER_A e ENGINEER_B. São pares competentes.
+  return `Transform this plan into a natural technical podcast conversation between ENGINEER_A and ENGINEER_B. They are competent peers.
 
-Ambos introduzem ideias, reagem à fala anterior, fazem perguntas naturais, desafiam premissas, complementam o raciocínio, discordam ocasionalmente, sugerem alternativas e revisitam decisões conforme restrições aparecem. Evite pergunta → resposta completa → próxima pergunta. Desenvolva ideias em várias falas variadas e razoavelmente concisas. Nenhum falante é permanentemente entrevistador, professor, especialista ou aluno. Use português brasileiro falado, natural e adequado para TTS.
+Both introduce ideas, react to the previous turn, ask natural questions, challenge assumptions, complement reasoning, occasionally disagree, suggest alternatives, and revisit decisions as constraints appear. Avoid question → complete answer → next question. Develop ideas across several varied, reasonably concise turns. Neither speaker is permanently interviewer, teacher, expert, or student. Use natural spoken English suitable for TTS.
 
-Não contradiga a fonte técnica nem mencione documentos, prompts, exercícios, lições ou material de estudo. Retorne falas estruturadas com ids estáveis, sequência zero-based, ids de seção, direção de entrega e estimativa de duração.
+${SCRIPT_TRANSFORM_RULES}
 
-Fonte técnica: ${JSON.stringify(content)}
-Plano da discussão: ${JSON.stringify(plan)}`;
+Do not mention documents, prompts, exercises, lessons, or study material. Return structured turns with stable ids, zero-based sequence, section ids, delivery direction, and duration estimate.
+
+${NOTION_SCRIPT_RULES}
+
+${formatScriptSourceContext(topic, content)}
+Discussion plan: ${JSON.stringify(plan)}`;
 }

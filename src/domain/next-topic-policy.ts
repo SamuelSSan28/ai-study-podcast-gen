@@ -61,3 +61,30 @@ export async function selectNextTopic(
 
   return { rejected };
 }
+
+/** True when every remaining roadmap topic is waiting on unmet prerequisites. */
+export function isWaitingForPrerequisites(result: TopicSelectionResult): boolean {
+  return (
+    !result.topic &&
+    result.rejected.length > 0 &&
+    result.rejected.every((rejected) => rejected.reason === 'PREREQUISITES_NOT_READY')
+  );
+}
+
+/** True when no PLANNED topic can proceed before duplicate checks (e.g. cron guard). */
+export function isBlockedByPrerequisites(
+  candidates: StudyPlanTopic[],
+  history: StudyPlanTopic[],
+): boolean {
+  if (!candidates.length) return false;
+  const ordered = [...candidates].sort((a, b) => a.week - b.week || a.sequence - b.sequence);
+  const completedNames = new Set(
+    history.flatMap((topic) => [normalizeTopicTitle(topic.title), topic.slug]),
+  );
+  return !ordered.some((candidate) =>
+    candidate.prerequisites.every((prerequisite) => {
+      const normalized = normalizeTopicTitle(prerequisite);
+      return completedNames.has(normalized) || completedNames.has(topicSlug(prerequisite));
+    }),
+  );
+}

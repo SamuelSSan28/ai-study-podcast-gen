@@ -71,6 +71,7 @@ export interface AiGateway {
     mode: PodcastMode,
   ): Promise<ConversationPlan>;
   generateScript(
+    topic: StudyPlanTopic,
     content: StudyContent,
     plan: ConversationPlan,
     mode: PodcastMode,

@@ -25,19 +25,7 @@ const input = {
     studied: false,
   },
   technicalContent: {
-    overview: 'Overview',
-    businessContext: 'Context',
-    requirements: [],
-    assumptions: [],
-    architecture: 'Architecture',
-    architectureEvolution: [],
-    decisions: [],
-    failureScenarios: [],
-    observability: [],
-    slos: [],
-    tradeoffs: [],
-    vocabulary: [],
-    reviewQuestions: [],
+    sections: [{ id: 'backpressure', title: 'Backpressure', blocks: [] }],
   },
   targetMinutes: 30,
 } satisfies CreateConversationPlanInput;
@@ -46,14 +34,56 @@ describe('resolvePrompt', () => {
   it('resolves the interview planner independently', () => {
     const result = resolvePrompt({ stage: 'conversation-plan', mode: 'INTERVIEW', value: input });
     expect(result.version).toContain('interview');
-    expect(result.prompt).toContain('entrevista técnica realista');
+    expect(result.prompt).toContain('realistic');
+    expect(result.prompt).toContain('technical interview');
     expect(result.prompt).not.toContain('ENGINEER_A');
   });
 
   it('resolves the peer discussion planner and its distinct schema', () => {
     const result = resolvePrompt({ stage: 'conversation-plan', mode: 'DISCUSSION', value: input });
     expect(result.version).toContain('discussion');
-    expect(result.prompt).toContain('Isto não é uma entrevista');
+    expect(result.prompt).toContain('This is not an interview');
     expect(() => result.schema.parse({ mode: 'INTERVIEW' })).toThrow();
+  });
+
+  it('resolves the explanation lesson planner with topic-driven delivery', () => {
+    const result = resolvePrompt({ stage: 'conversation-plan', mode: 'EXPLANATION', value: input });
+    expect(result.version).toContain('explanation');
+    expect(result.prompt).toContain('centralQuestion');
+    expect(result.prompt).toContain('runningScenario');
+    expect(result.prompt).toContain('SOURCE ARTICLE');
+    expect(result.prompt).toContain('ARTICLE FIDELITY');
+  });
+
+  it('resolves the explanation script with transform rules', () => {
+    const result = resolvePrompt({
+      stage: 'podcast-script',
+      mode: 'EXPLANATION',
+      value: {
+        topic: input.topic,
+        content: { sections: [] },
+        plan: {
+          mode: 'EXPLANATION',
+          version: '1',
+          title: 'Kafka Backpressure',
+          context: {
+            companyType: 'Streaming',
+            product: 'Pipeline',
+            initialProblem: 'Consumer lag',
+            scale: ['1M events/s'],
+          },
+          objectives: ['Handle backpressure'],
+          closing: { finalQuestion: 'How do you protect consumers?', expectedThemes: ['pause'] },
+          centralQuestion: 'How do you protect consumers?',
+          runningScenario: { name: 'App', description: 'One app', components: ['modal'] },
+          deliveryApproach: 'solo_lecture',
+          deliveryRationale: 'Linear',
+          sections: [],
+        },
+      },
+    });
+    expect(result.version).toContain('explanation');
+    expect(result.prompt).toContain('Transform, do not expand');
+    expect(result.prompt).toContain('SOURCE ARTICLE');
   });
 });

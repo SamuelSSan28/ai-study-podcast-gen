@@ -1,4 +1,9 @@
 import {
+  StudyPlan as StudyPlanRow,
+  StudyPlanTopic as StudyPlanTopicRow,
+  StudySession as StudySessionRow,
+} from '@prisma/client';
+import {
   StudyPlan,
   StudyPlanTopic,
   StudySession,
@@ -21,6 +26,7 @@ export function planToRow(plan: StudyPlan): {
   provisioningError: string | null;
   overview: string;
   notionPageId: string | null;
+  notionTopicsDbId: string | null;
   notionUrl: string | null;
   targetSessionMinutes: number;
   currentTopicId: string | null;
@@ -42,6 +48,7 @@ export function planToRow(plan: StudyPlan): {
     provisioningError: plan.provisioningError ?? null,
     overview: plan.overview,
     notionPageId: plan.notionPageId ?? null,
+    notionTopicsDbId: plan.notionTopicsDbId ?? null,
     notionUrl: plan.notionUrl ?? null,
     targetSessionMinutes: plan.targetSessionMinutes,
     currentTopicId: plan.currentTopicId ?? null,
@@ -49,27 +56,7 @@ export function planToRow(plan: StudyPlan): {
   };
 }
 
-export function planFromRow(row: {
-  id: string;
-  title: string;
-  goal: string;
-  level: string;
-  durationWeeks: number;
-  sessionsPerWeek: number;
-  preferredDays: string;
-  startDate: string;
-  endDate: string;
-  status: string;
-  provisioningStatus: string;
-  idempotencyKey: string;
-  provisioningError: string | null;
-  overview: string;
-  notionPageId: string | null;
-  notionUrl: string | null;
-  targetSessionMinutes: number;
-  currentTopicId: string | null;
-  createdAt: Date;
-}): StudyPlan {
+export function planFromRow(row: StudyPlanRow): StudyPlan {
   return {
     id: row.id,
     title: row.title,
@@ -86,6 +73,7 @@ export function planFromRow(row: {
     provisioningError: row.provisioningError ?? undefined,
     overview: row.overview,
     notionPageId: row.notionPageId ?? undefined,
+    notionTopicsDbId: row.notionTopicsDbId ?? undefined,
     notionUrl: row.notionUrl ?? undefined,
     targetSessionMinutes: row.targetSessionMinutes,
     currentTopicId: row.currentTopicId ?? undefined,
@@ -119,18 +107,7 @@ export function topicToRow(topic: StudyPlanTopic): {
   };
 }
 
-export function topicFromRow(row: {
-  id: string;
-  studyPlanId: string;
-  payload: string;
-  status: string;
-  studied: boolean;
-  order: number;
-  scheduledAt: string;
-  week: number;
-  sequence: number;
-  notionPageId: string | null;
-}): StudyPlanTopic {
+export function topicFromRow(row: StudyPlanTopicRow): StudyPlanTopic {
   const topic = JSON.parse(row.payload) as StudyPlanTopic;
   return {
     ...topic,
@@ -156,6 +133,7 @@ export function sessionToRow(session: StudySession): {
   createdAt: Date;
   completedAt: Date | null;
   notionPageId: string | null;
+  notionScriptPageId: string | null;
 } {
   return {
     id: session.id,
@@ -167,20 +145,11 @@ export function sessionToRow(session: StudySession): {
     createdAt: new Date(session.createdAt),
     completedAt: session.completedAt ? new Date(session.completedAt) : null,
     notionPageId: session.notionPageId ?? null,
+    notionScriptPageId: session.notionScriptPageId ?? null,
   };
 }
 
-export function sessionFromRow(row: {
-  id: string;
-  studyPlanId: string;
-  topicId: string;
-  generationKey: string;
-  stage: string;
-  payload: string;
-  createdAt: Date;
-  completedAt: Date | null;
-  notionPageId: string | null;
-}): StudySession {
+export function sessionFromRow(row: StudySessionRow): StudySession {
   const session = JSON.parse(row.payload) as StudySession;
   return {
     ...session,
@@ -192,5 +161,6 @@ export function sessionFromRow(row: {
     createdAt: row.createdAt.toISOString(),
     completedAt: row.completedAt?.toISOString(),
     notionPageId: row.notionPageId ?? session.notionPageId,
+    notionScriptPageId: row.notionScriptPageId ?? session.notionScriptPageId,
   };
 }

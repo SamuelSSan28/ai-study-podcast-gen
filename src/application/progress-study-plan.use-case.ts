@@ -5,6 +5,7 @@ import {
   StudyTopicRepository,
   TOPIC_REPOSITORY,
 } from './ports';
+import { isBlockedByPrerequisites } from '../domain/next-topic-policy';
 import { QueueService } from '../queue/queue.service';
 
 @Injectable()
@@ -23,6 +24,10 @@ export class ProgressStudyPlanUseCase {
     const ready = (await this.topics.findReady(planId)).sort((a, b) => a.order - b.order);
     const current = ready[0];
     if (!current) {
+      const allTopics = await this.topics.findTopicsByPlan(planId);
+      if (allTopics.some((topic) => topic.status === 'GENERATING')) return 'WAITING';
+      const planned = await this.topics.findPlanned(planId);
+      if (isBlockedByPrerequisites(planned, ready)) return 'WAITING';
       await this.queue.enqueueGenerateSession(planId);
       return 'NEEDS_GENERATION';
     }

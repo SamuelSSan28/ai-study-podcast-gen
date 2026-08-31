@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   }
 
   const client = new Client({ auth: notionKey });
-  const topicsDbId = await findDatabase(client, parentPageId, NOTION_DATABASE_NAMES.records);
+  const topicsDbId = await findDatabase(client, parentPageId, NOTION_DATABASE_NAMES.planTopics);
 
   console.log(`Mode: ${apply ? 'APPLY (will archive)' : 'DRY-RUN'}`);
   console.log(

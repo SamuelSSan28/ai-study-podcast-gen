@@ -6,37 +6,37 @@ import {
   TopicResearch,
 } from './models';
 
-const CONTENT_SECTION_DEFS: Array<{ id: string; title: string; key: keyof StudyContent }> = [
-  { id: 'overview', title: 'Visão geral', key: 'overview' },
-  { id: 'businessContext', title: 'Contexto de negócio', key: 'businessContext' },
-  { id: 'requirements', title: 'Requisitos', key: 'requirements' },
-  { id: 'assumptions', title: 'Premissas', key: 'assumptions' },
-  { id: 'architecture', title: 'Arquitetura', key: 'architecture' },
-  { id: 'architectureEvolution', title: 'Evolução da arquitetura', key: 'architectureEvolution' },
-  { id: 'decisions', title: 'Decisões de design', key: 'decisions' },
-  { id: 'failureScenarios', title: 'Falhas e incidentes', key: 'failureScenarios' },
-  { id: 'observability', title: 'Observabilidade', key: 'observability' },
-  { id: 'slos', title: 'SLIs e SLOs', key: 'slos' },
-  { id: 'tradeoffs', title: 'Trade-offs', key: 'tradeoffs' },
-  { id: 'vocabulary', title: 'Vocabulário', key: 'vocabulary' },
-  { id: 'reviewQuestions', title: 'Perguntas de revisão', key: 'reviewQuestions' },
-  { id: 'challenge', title: 'Desafio prático', key: 'challenge' },
-];
-
 export function seedArticleOutline(topic: Pick<StudyPlanTopic, 'learningObjectives' | 'title'>): ArticleOutline {
   const fromObjectives: ArticleOutlineSection[] = topic.learningObjectives.map((title, index) => ({
-    id: `objective-${index + 1}`,
+    id: `section-${index + 1}`,
     title,
-    promptHint: `Cobrir objetivo de aprendizagem: ${title}`,
+    promptHint: `Cover learning objective: ${title}`,
   }));
   if (fromObjectives.length) return { sections: fromObjectives };
 
   return {
-    sections: CONTENT_SECTION_DEFS.slice(0, 6).map(({ id, title }) => ({
-      id,
-      title,
-      promptHint: `Escrever seção didática "${title}" para o tópico "${topic.title}"`,
-    })),
+    sections: [
+      {
+        id: 'introduction',
+        title: 'Introduction',
+        promptHint: `Explain why "${topic.title}" matters and what the learner will understand`,
+      },
+      {
+        id: 'core-concepts',
+        title: 'Core concepts',
+        promptHint: `Teach the essential concepts for "${topic.title}"`,
+      },
+      {
+        id: 'application',
+        title: 'Application',
+        promptHint: `Apply the concepts from "${topic.title}" to a concrete example`,
+      },
+      {
+        id: 'summary',
+        title: 'Summary',
+        promptHint: 'Recap the essential points and mental model',
+      },
+    ],
   };
 }
 
@@ -46,36 +46,23 @@ export function enrichArticleOutline(
   research?: TopicResearch,
 ): ArticleOutline {
   const base = topic.articleOutline ?? seedArticleOutline(topic);
-  if (!content) {
+  const sourceHints = research?.sources.slice(0, 3).map((source) => `${source.title}: ${source.url}`);
+
+  if (!content?.sections.length) {
     return {
       sections: base.sections.map((section) => ({
         ...section,
-        sourceHints: research?.sources.slice(0, 3).map((s) => s.url) ?? section.sourceHints,
+        sourceHints: sourceHints ?? section.sourceHints,
       })),
     };
   }
 
-  const sections: ArticleOutlineSection[] = CONTENT_SECTION_DEFS.filter(({ key }) => {
-    const value = content[key];
-    if (value == null) return false;
-    if (Array.isArray(value)) return value.length > 0;
-    return String(value).trim().length > 0;
-  }).map(({ id, title, key }) => ({
-    id,
-    title,
-    promptHint: `Expandir seção ${key} para ${topic.title}`,
-    sourceHints: research?.sources.slice(0, 3).map((s) => `${s.title}: ${s.url}`),
-  }));
-
-  return { sections: sections.length ? sections : base.sections };
+  return {
+    sections: content.sections.map(({ id, title }) => ({
+      id,
+      title,
+      promptHint: `Article section: ${title}`,
+      sourceHints,
+    })),
+  };
 }
-
-export function contentLinesForKey(content: StudyContent, key: keyof StudyContent): string[] {
-  const value = content[key];
-  if (value == null) return [];
-  if (Array.isArray(value)) return value.map(String);
-  const text = String(value).trim();
-  return text ? [text] : [];
-}
-
-export { CONTENT_SECTION_DEFS };

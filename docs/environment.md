@@ -23,16 +23,21 @@ documented default when omitted.
 
 ## OpenAI
 
-| Variable                         | Required | Default           | Description                                                                       |
-| -------------------------------- | -------- | ----------------- | --------------------------------------------------------------------------------- |
-| `OPENAI_API_KEY`                 | Yes      | —                 | API key used to authenticate requests to OpenAI.                                  |
-| `OPENAI_CONTENT_MODEL`           | No       | `gpt-5.5`         | Model used for web research and technical content generation.                     |
-| `OPENAI_PLANNING_MODEL`          | No       | `gpt-5.5`         | Model used to generate study plans.                                               |
-| `OPENAI_VALIDATION_MODEL`        | No       | `gpt-5.5`         | Model used by the podcast-script validation step.                                 |
-| `OPENAI_CONVERSATION_PLAN_MODEL` | No       | `gpt-5.5`         | Model used to plan the turns in a conversation.                                   |
-| `OPENAI_SCRIPT_MODEL`            | No       | `gpt-5.5`         | Model used to turn session content and a conversation plan into a podcast script. |
-| `OPENAI_POLISH_MODEL`            | No       | `gpt-5.5`         | Model used to polish generated dialogue.                                          |
-| `OPENAI_TTS_MODEL`               | No       | `gpt-4o-mini-tts` | Text-to-speech model used to synthesize each dialogue turn.                       |
+| Variable            | Required | Default                      | Description                                                                 |
+| ------------------- | -------- | ---------------------------- | --------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`    | Yes      | —                            | API key used to authenticate requests to OpenAI.                            |
+| `ROADMAP_MODEL`     | No       | `gpt-5.6-terra`              | Model for study-plan / roadmap generation.                                  |
+| `ARTICLE_MODEL`     | No       | `gpt-5.6-terra`              | Model for web research and technical article generation.                    |
+| `SCRIPT_MODEL`      | No       | `gpt-5.6-terra`              | Model for conversation plan, podcast script, and dialogue polish.           |
+| `AUX_MODEL`         | No       | `gpt-5.6-luna`               | Model for goal normalization and duplicate classification.                  |
+| `FALLBACK_MODEL`    | No       | `gpt-5.6-sol`                | Model used after two failures on the primary model for the same LLM call.   |
+| `TTS_PROVIDER`      | No       | `kokoro`                     | Text-to-speech backend: `kokoro` (local) or `openai`.                       |
+| `KOKORO_BASE_URL`   | No       | `http://127.0.0.1:8880/v1`   | OpenAI-compatible Kokoro-FastAPI base URL (when `TTS_PROVIDER=kokoro`).     |
+| `KOKORO_TTS_SPEED`  | No       | `1`                          | Speech speed multiplier for Kokoro (typical range 0.95–1.05).               |
+| `OPENAI_TTS_MODEL`  | No       | `gpt-4o-mini-tts`            | OpenAI TTS model when `TTS_PROVIDER=openai`.                                |
+
+Legacy `OPENAI_*_MODEL` variables still work as fallbacks when the simplified
+variables above are omitted.
 
 Model names are passed directly to the OpenAI client. Set them to models available
 to the account associated with `OPENAI_API_KEY`.
@@ -52,24 +57,27 @@ to the account associated with `OPENAI_API_KEY`.
 | ----------------------------- | -------- | ------------------- | ------------------------------------------------------------------------------------------------- |
 | `PODCAST_CRON`                | No       | `0 12 * * 2,5`      | Cron expression for automatic generation (by default, noon on Tuesdays and Fridays).              |
 | `PODCAST_TIMEZONE`            | No       | `America/Sao_Paulo` | IANA time-zone name applied to `PODCAST_CRON`.                                                    |
-| `PODCAST_TARGET_MINUTES`      | No       | `30`                | Target episode duration in whole minutes, from 5 through 60.                                      |
-| `DEFAULT_PODCAST_MODE`        | No       | `DISCUSSION`        | Mode used when an API request does not specify one. Accepted values: `INTERVIEW` or `DISCUSSION`. |
+| `PODCAST_TARGET_MINUTES`      | No       | `30`                | Target episode duration in whole minutes, from 5 through 60. Used for `INTERVIEW` and `DISCUSSION` modes only. |
 | `PODCAST_MAX_TURN_CHARACTERS` | No       | `1200`              | Maximum positive number of characters accepted in one dialogue turn.                              |
-| `PODCAST_MIN_TURNS`           | No       | `35`                | Minimum positive number of turns required in a generated script.                                  |
-| `PODCAST_MAX_TURNS`           | No       | `120`               | Maximum positive number of turns accepted in a generated script.                                  |
+| `PODCAST_MIN_TURNS`           | No       | `35`                | Minimum turns for `INTERVIEW` and `DISCUSSION` scripts.                                           |
+| `PODCAST_MAX_TURNS`           | No       | `120`               | Maximum turns for `INTERVIEW` and `DISCUSSION` scripts.                                         |
 
 ## Voices
 
-Each value is an OpenAI text-to-speech voice name. Interview mode uses the
-interviewer and candidate voices; discussion mode uses the host and engineer voices.
+Each value is a voice name. With `TTS_PROVIDER=kokoro`, Kokoro-FastAPI accepts
+OpenAI voice aliases (`alloy`, `coral`, etc.) or direct Kokoro names (`am_adam`,
+`af_bella`). Interview mode uses the interviewer and candidate voices; discussion
+mode uses the host and engineer voices. Explanation mode (the default when no
+`mode` query param is passed) reuses the host and engineer B voices for instructor
+and optional co-host narration.
 
 | Variable                    | Required | Default | Description                                   |
 | --------------------------- | -------- | ------- | --------------------------------------------- |
 | `PODCAST_INTERVIEWER_VOICE` | No       | `alloy` | Interviewer's voice in `INTERVIEW` mode.      |
 | `PODCAST_CANDIDATE_VOICE`   | No       | `coral` | Candidate's voice in `INTERVIEW` mode.        |
-| `PODCAST_HOST_VOICE`        | No       | `alloy` | Host's voice in `DISCUSSION` mode.            |
+| `PODCAST_HOST_VOICE`        | No       | `alloy` | Host / instructor voice.                      |
 | `PODCAST_ENGINEER_A_VOICE`  | No       | `alloy` | First engineer's voice in `DISCUSSION` mode.  |
-| `PODCAST_ENGINEER_B_VOICE`  | No       | `coral` | Second engineer's voice in `DISCUSSION` mode. |
+| `PODCAST_ENGINEER_B_VOICE`  | No       | `coral` | Second engineer / co-host voice.            |
 
 ## Local files and audio
 

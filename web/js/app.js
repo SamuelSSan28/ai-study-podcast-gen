@@ -196,23 +196,30 @@ function sessionIsGenerating(session) {
   return !terminalStage(session.stage);
 }
 
-function topicIsComplete(topic, session) {
-  if (topic.studied) return true;
-  return session?.stage === 'COMPLETED';
+function topicIsStudied(topic) {
+  return Boolean(topic.studied);
 }
 
-function countCompletedTopics(topics, byTopic) {
-  return topics.filter((t) => topicIsComplete(t, (byTopic.get(t.id) ?? [])[0])).length;
+function topicContentReady(session) {
+  return sessionHasArticle(session);
+}
+
+function articleNotionUrl(topic, session) {
+  return topic?.notionUrl ?? session?.notionUrl ?? null;
+}
+
+function countStudiedTopics(topics) {
+  return topics.filter((t) => topicIsStudied(t)).length;
 }
 
 function topicListIcon(topic, plan, session) {
-  if (topicIsComplete(topic, session)) return '✓';
+  if (topicIsStudied(topic)) return '✓';
   if (plan.currentTopicId === topic.id || (session && sessionIsGenerating(session))) return '→';
   return '○';
 }
 
 function topicListIconClass(topic, plan, session) {
-  if (topicIsComplete(topic, session)) return 'topic-icon-done';
+  if (topicIsStudied(topic)) return 'topic-icon-done';
   if (plan.currentTopicId === topic.id || (session && sessionIsGenerating(session))) return 'topic-icon-current';
   return 'topic-icon-pending';
 }
@@ -306,10 +313,11 @@ function renderTopicMaterials(topic, session) {
   const articleReady = sessionHasArticle(session);
   const scriptReady = sessionHasScript(session);
   const audioReady = sessionHasAudio(session);
+  const notionArticleUrl = articleNotionUrl(topic, session);
 
   const articleAction =
-    articleReady && session?.notionUrl
-      ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(session.notionUrl)}" target="_blank" rel="noopener">Ler artigo</a>`
+    articleReady && notionArticleUrl
+      ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(notionArticleUrl)}" target="_blank" rel="noopener">Ler artigo no Notion</a>`
       : '';
 
   const scriptAction = scriptReady
@@ -325,7 +333,7 @@ function renderTopicMaterials(topic, session) {
       icon: '📖',
       label: 'Artigo',
       ready: articleReady,
-      readyLabel: session?.notionUrl ? 'Disponível' : 'Gerado',
+      readyLabel: notionArticleUrl ? 'Disponível no Notion' : 'Gerado',
       pendingLabel: sessionIsGenerating(session) ? STAGE_LABELS[session.stage] ?? 'Gerando…' : 'Ainda não gerado',
       actionHtml: articleAction,
     })}
@@ -342,9 +350,32 @@ function renderTopicMaterials(topic, session) {
   <div class="script-panel d-none" data-script-for="${session?.id ?? ''}"></div>`;
 }
 
+function renderStudiedCheckbox(topic, session) {
+  const contentReady = topicContentReady(session);
+  const inputId = `studied-${topic.id}`;
+  return `<div class="form-check topic-studied-check">
+    <input
+      class="form-check-input studied-checkbox"
+      type="checkbox"
+      id="${inputId}"
+      data-id="${topic.id}"
+      ${topic.studied ? 'checked' : ''}
+      ${contentReady ? '' : 'disabled'}
+    />
+    <label class="form-check-label" for="${inputId}">
+      ${topic.studied ? 'Concluído por você' : 'Marcar como concluído'}
+    </label>
+    ${
+      !contentReady
+        ? '<div class="form-text">Disponível quando o conteúdo estiver pronto.</div>'
+        : ''
+    }
+  </div>`;
+}
+
 function renderTopicDetail(topic, index, total, plan, session) {
-  const complete = topicIsComplete(topic, session);
-  const contentReady = session && sessionHasArticle(session);
+  const studied = topicIsStudied(topic);
+  const contentReady = topicContentReady(session);
   const objectives = topic.learningObjectives ?? [];
 
   return `<div class="topic-detail">
@@ -357,7 +388,8 @@ function renderTopicDetail(topic, index, total, plan, session) {
         <span>${topic.estimatedMinutes ?? plan.targetSessionMinutes ?? '—'} min</span>
         <span class="topic-meta-sep">·</span>
         ${topicBadge(topic.status)}
-        ${complete ? badge('Conteúdo gerado', 'success') : ''}
+        ${contentReady ? badge('Conteúdo gerado', 'success') : ''}
+        ${studied ? badge('Estudado', 'primary') : ''}
       </div>
       ${
         topic.summary || topic.description
@@ -392,7 +424,11 @@ function renderTopicDetail(topic, index, total, plan, session) {
       ${
         contentReady
           ? `<div class="content-actions mb-2">
-              ${session.notionUrl ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(session.notionUrl)}" target="_blank" rel="noopener">Ler artigo</a>` : ''}
+              ${
+                articleNotionUrl(topic, session)
+                  ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(articleNotionUrl(topic, session))}" target="_blank" rel="noopener">Ler artigo no Notion</a>`
+                  : ''
+              }
             </div>`
           : ''
       }
@@ -401,13 +437,7 @@ function renderTopicDetail(topic, index, total, plan, session) {
           ? `<button class="btn btn-sm btn-outline-warning retry-btn" data-id="${session.id}">Tentar novamente</button>`
           : ''
       }
-      ${
-        !complete && (topic.status === 'READY' || contentReady)
-          ? `<button class="btn btn-sm btn-success studied-btn" data-id="${topic.id}">✓ Marcar como concluído</button>`
-          : complete
-            ? `<span class="text-success small">✓ Concluído</span>`
-            : ''
-      }
+      ${renderStudiedCheckbox(topic, session)}
     </div>
   </div>`;
 }
@@ -417,7 +447,7 @@ function renderTopicRow(topic, index, total, plan, session, expanded) {
   const iconClass = topicListIconClass(topic, plan, session);
   const isCurrent = plan.currentTopicId === topic.id;
   const subtitle = truncate(topic.summary || topic.description, 90);
-  const complete = topicIsComplete(topic, session);
+  const studied = topicIsStudied(topic);
 
   return `<div class="topic-row ${expanded ? 'topic-row-expanded' : ''} ${isCurrent ? 'topic-row-current' : ''}" data-topic-id="${topic.id}">
     <button type="button" class="topic-row-toggle" aria-expanded="${expanded}">
@@ -436,7 +466,7 @@ function renderTopicRow(topic, index, total, plan, session, expanded) {
           ${levelBadge(topic.level)}
           <span class="topic-meta-sep">·</span>
           <span>${topic.estimatedMinutes ?? plan.targetSessionMinutes ?? '—'} min</span>
-          ${isCurrent && !complete ? '<span class="topic-next-label">Próximo</span>' : ''}
+          ${isCurrent && !studied ? '<span class="topic-next-label">Próximo</span>' : ''}
         </span>
       </span>
     </button>
@@ -510,12 +540,23 @@ function bindTopicInteractions(el, planId) {
     });
   });
 
-  el.querySelectorAll('.studied-btn').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+  el.querySelectorAll('.studied-checkbox').forEach((input) => {
+    input.addEventListener('change', async (e) => {
       e.stopPropagation();
-      await API.markStudied(planId, btn.dataset.id);
-      showToast('Marcado como concluído');
-      await renderPlanDetail(planId);
+      const checkbox = e.currentTarget;
+      const topicId = checkbox.dataset.id;
+      const studied = checkbox.checked;
+      checkbox.disabled = true;
+      try {
+        await API.markStudied(planId, topicId, studied);
+        showToast(studied ? 'Marcado como concluído' : 'Marcação removida');
+        await renderPlanDetail(planId);
+      } catch (err) {
+        checkbox.checked = !studied;
+        showToast(err instanceof Error ? err.message : 'Erro ao atualizar');
+      } finally {
+        checkbox.disabled = false;
+      }
     });
   });
 
@@ -619,7 +660,7 @@ async function renderPlanDetail(planId) {
   }
 
   const ordered = [...topics].sort((a, b) => a.order - b.order);
-  const completedCount = countCompletedTopics(ordered, byTopic);
+  const completedCount = countStudiedTopics(ordered);
   const minutes = plan.targetSessionMinutes ?? 45;
 
   const header = `
@@ -766,8 +807,6 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
       title: document.getElementById('title').value,
       goal: document.getElementById('goal').value,
     };
-    const minutes = document.getElementById('minutes').value;
-    if (minutes) body.settings = { targetSessionMinutes: Number(minutes) };
     const result = await API.createPlan(body);
     alert.className = 'alert alert-success mt-3';
     alert.textContent = `Plano criado (${result.id}) — geração enfileirada`;

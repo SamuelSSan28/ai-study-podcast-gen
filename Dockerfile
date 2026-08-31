@@ -17,7 +17,7 @@ COPY src ./src
 ENV NODE_ENV=development
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm run db:migrate && npm run start:dev"]
+CMD ["sh", "-c", "npx prisma generate && npm run db:migrate && rm -rf dist && npm run start:dev"]
 
 FROM node:22-bookworm-slim AS build
 
@@ -51,4 +51,4 @@ RUN mkdir -p /app/data /app/storage/podcasts && chown -R node:node /app/data /ap
 USER node
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm run db:migrate && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma generate && npm run db:migrate && node dist/main.js"]

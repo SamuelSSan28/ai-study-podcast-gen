@@ -3,6 +3,7 @@ import { Inject, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { GenerateNextStudySessionUseCase } from '../application/generate-next-session.use-case';
 import { PLAN_REPOSITORY, StudyPlanRepository } from '../application/ports';
+import { isSessionGenerationSkippedError } from '../domain/session-generation-skipped.error';
 import { DiscordNotifier } from '../notifications/discord.notifier';
 import { QueueService, RetryJob, SessionJob, STUDY_SESSIONS_QUEUE } from './queue.service';
 
@@ -31,6 +32,20 @@ export class StudySessionsProcessor extends WorkerHost {
       const session = await this.generator.execute(planId, mode);
       await this.queue.enqueueNotionSession(session.id);
     } catch (error) {
+      if (isSessionGenerationSkippedError(error)) {
+        const plan = await this.plans.findById(error.planId);
+        this.logger.log(
+          `Session generation skipped for plan ${error.planId}: ${error.message}`,
+        );
+        if (plan) {
+          try {
+            await this.notifier.notifySessionGenerationSkipped(plan, error.waitingTopicCount);
+          } catch {
+            /* Discord must not block the worker */
+          }
+        }
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       const planId =
         job.name === 'retry-session'

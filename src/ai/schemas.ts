@@ -1,4 +1,6 @@
 import { z } from 'zod';
+
+/** OpenAI structured outputs require every field in the schema; use .nullable() instead of .optional(). */
 export const generatedPlanSchema = z.object({
   overview: z.string(),
   topics: z.array(
@@ -36,22 +38,69 @@ export const duplicateSchema = z.object({
   classification: z.enum(['NEW', 'RELATED_BUT_DEEPER', 'DUPLICATE']),
   rationale: z.string(),
 });
-export const contentSchema = z.object({
-  overview: z.string(),
-  businessContext: z.string(),
-  requirements: z.array(z.string()),
-  assumptions: z.array(z.string()),
-  architecture: z.string(),
-  architectureEvolution: z.array(z.string()),
-  decisions: z.array(z.string()),
-  failureScenarios: z.array(z.string()),
-  observability: z.array(z.string()),
-  slos: z.array(z.string()),
-  tradeoffs: z.array(z.string()),
-  vocabulary: z.array(z.string()),
-  reviewQuestions: z.array(z.string()),
-  challenge: z.string().nullable(),
+export const normalizedPlanInputSchema = z.object({
+  title: z.string().min(1),
+  goal: z.string().min(1),
 });
+const articleContentBlockSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('paragraph'), text: z.string(), italic: z.boolean() }),
+  z.object({
+    type: z.literal('heading'),
+    level: z.union([z.literal(2), z.literal(3)]),
+    text: z.string(),
+  }),
+  z.object({ type: z.literal('bullet_list'), items: z.array(z.string()) }),
+  z.object({ type: z.literal('numbered_list'), items: z.array(z.string()) }),
+  z.object({ type: z.literal('quote'), text: z.string() }),
+  z.object({
+    type: z.literal('callout'),
+    variant: z.enum(['insight', 'warning', 'rule', 'remember']),
+    text: z.string(),
+  }),
+  z.object({ type: z.literal('code'), language: z.string(), code: z.string() }),
+  z.object({ type: z.literal('divider') }),
+  z.object({
+    type: z.literal('table'),
+    headers: z.array(z.string()),
+    rows: z.array(z.array(z.string())),
+  }),
+]);
+
+export const contentSchema = z.object({
+  sections: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        blocks: z.array(articleContentBlockSchema).min(1),
+      }),
+    )
+    .min(3),
+  reviewQuestions: z.array(z.string()).nullable(),
+});
+const dialogueRoleSchema = z.enum([
+  'HOOK',
+  'QUESTION',
+  'EXPLAIN',
+  'EXAMPLE',
+  'CHALLENGE',
+  'ANSWER',
+  'CORRECTION',
+  'RECAP',
+  'TRANSITION',
+]);
+const deliverySchema = z
+  .object({
+    style: z.enum(['normal', 'reflective', 'conversational', 'energetic', 'question']).nullable(),
+    tone: z
+      .enum(['neutral', 'curious', 'skeptical', 'thoughtful', 'confident', 'concerned'])
+      .nullable(),
+    pace: z.enum(['slow', 'medium', 'fast']).nullable(),
+    emphasis: z.array(z.string()).nullable(),
+    pauseBeforeMs: z.number().int().nonnegative().nullable(),
+    pauseAfterMs: z.number().int().nonnegative().nullable(),
+  })
+  .nullable();
 const scriptBaseSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -61,21 +110,20 @@ const scriptBaseSchema = z.object({
     .array(
       z.object({
         id: z.string(),
-        speaker: z.enum(['HOST', 'INTERVIEWER', 'CANDIDATE', 'ENGINEER_A', 'ENGINEER_B']),
+        speaker: z.enum([
+          'HOST',
+          'INTERVIEWER',
+          'CANDIDATE',
+          'ENGINEER_A',
+          'ENGINEER_B',
+          'INSTRUCTOR',
+          'CO_HOST',
+        ]),
         text: z.string().min(1),
         sectionId: z.string(),
         sequence: z.number().int().nonnegative(),
-        delivery: z
-          .object({
-            tone: z
-              .enum(['neutral', 'curious', 'skeptical', 'thoughtful', 'confident', 'concerned'])
-              .nullable(),
-            pace: z.enum(['slow', 'medium', 'fast']).nullable(),
-            emphasis: z.array(z.string()).nullable(),
-            pauseBeforeMs: z.number().int().nonnegative().nullable(),
-            pauseAfterMs: z.number().int().nonnegative().nullable(),
-          })
-          .nullable(),
+        role: dialogueRoleSchema.nullable(),
+        delivery: deliverySchema,
       }),
     )
     .min(4),
@@ -163,3 +211,99 @@ export const discussionConversationPlanSchema = conversationPlanBaseSchema.exten
     )
     .min(2),
 });
+const explanationDialogueReasonSchema = z.enum([
+  'comparison',
+  'tradeoff',
+  'misconception',
+  'ambiguous_case',
+  'decision_review',
+  'interview_practice',
+]);
+const explanationSectionSchema = z
+  .object({
+    id: z.string(),
+    episodeBeat: z.enum([
+      'HOOK',
+      'LEARNING_PROMISE',
+      'SETUP',
+      'DISCOVERY',
+      'GUIDED_PRACTICE',
+      'FAILURE',
+      'CORRECTION',
+      'INDEPENDENT_CHECK',
+      'MENTAL_MODEL',
+      'RECAP',
+    ]),
+    topic: z.string(),
+    objective: z.string(),
+    concept: z.string(),
+    examples: z.array(z.string()),
+    realWorldCases: z.array(z.string()),
+    speakerMode: z.enum(['instructor_solo', 'dialogue']),
+    dialogueReason: explanationDialogueReasonSchema.nullable(),
+    coHostMoments: z.array(z.string()),
+    keyTakeaways: z.array(z.string()),
+    faqItems: z.array(z.object({ question: z.string(), answer: z.string() })).nullable(),
+  })
+  .superRefine((section, ctx) => {
+    if (section.speakerMode === 'dialogue' && !section.dialogueReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'dialogueReason is required when speakerMode is dialogue',
+        path: ['dialogueReason'],
+      });
+    }
+    if (section.speakerMode === 'instructor_solo' && section.coHostMoments.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'coHostMoments must be empty when speakerMode is instructor_solo',
+        path: ['coHostMoments'],
+      });
+    }
+  });
+export const explanationConversationPlanSchema = conversationPlanBaseSchema
+  .extend({
+    mode: z.literal('EXPLANATION'),
+    centralQuestion: z.string().min(1),
+    runningScenario: z.object({
+      name: z.string().min(1),
+      description: z.string().min(1),
+      components: z.array(z.string()).min(2),
+    }),
+    deliveryApproach: z.enum(['solo_lecture', 'instructor_with_faq', 'guided_walkthrough']),
+    deliveryRationale: z.string().min(1),
+    sections: z.array(explanationSectionSchema).min(5),
+  })
+  .superRefine((plan, ctx) => {
+    if (plan.deliveryApproach !== 'solo_lecture') return;
+    for (let i = 0; i < plan.sections.length; i++) {
+      if (plan.sections[i].speakerMode !== 'instructor_solo') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'solo_lecture plans require speakerMode instructor_solo on every section',
+          path: ['sections', i, 'speakerMode'],
+        });
+      }
+    }
+  });
+const explanationTurnSchema = z.object({
+  id: z.string(),
+  speaker: z.enum(['HOST', 'INSTRUCTOR', 'CO_HOST']),
+  text: z.string().min(1),
+  sectionId: z.string(),
+  sequence: z.number().int().nonnegative(),
+  role: dialogueRoleSchema.nullable(),
+  delivery: deliverySchema,
+});
+export const explanationScriptSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    version: z.string(),
+    estimatedDurationSeconds: z.number().int().positive(),
+    turns: z.array(explanationTurnSchema).min(1),
+  })
+  .refine(
+    ({ turns }) => turns.some((turn) => turn.speaker === 'INSTRUCTOR' || turn.speaker === 'HOST'),
+    'Explanation scripts require INSTRUCTOR or HOST',
+  );

@@ -1,6 +1,6 @@
 export type PlanStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type StudyPlanProvisioningStatus = 'CREATING' | 'GENERATING' | 'READY' | 'FAILED';
-export type PodcastMode = 'INTERVIEW' | 'DISCUSSION';
+export type PodcastMode = 'INTERVIEW' | 'DISCUSSION' | 'EXPLANATION';
 export type TopicStatus = 'PLANNED' | 'GENERATING' | 'READY' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
 export type SessionStage =
   | 'CONTENT_PENDING'
@@ -37,6 +37,7 @@ export interface StudyPlan {
   provisioningError?: string;
   overview: string;
   notionPageId?: string;
+  notionTopicsDbId?: string;
   notionUrl?: string;
   createdAt: string;
   targetSessionMinutes: number;
@@ -69,6 +70,7 @@ export interface StudyPlanTopic {
   summary: string;
   status: TopicStatus;
   notionPageId?: string;
+  notionUrl?: string;
   order: number;
   level: 'FOUNDATION' | 'CORE' | 'INTERMEDIATE' | 'ADVANCED' | 'APPLIED';
   estimatedMinutes: number;
@@ -86,21 +88,16 @@ export interface TopicResearch {
     type: 'OFFICIAL_DOCUMENTATION' | 'PAPER' | 'ARTICLE' | 'BOOK' | 'OTHER';
   }>;
 }
+export interface StudyArticleSection {
+  id: string;
+  title: string;
+  blocks: import('../persistence/notion-format.contract').ArticleContentBlock[];
+}
+
+/** Canonical teaching article — podcast scripts derive from this, not from the topic alone. */
 export interface StudyContent {
-  overview: string;
-  businessContext: string;
-  requirements: string[];
-  assumptions: string[];
-  architecture: string;
-  architectureEvolution: string[];
-  decisions: string[];
-  failureScenarios: string[];
-  observability: string[];
-  slos: string[];
-  tradeoffs: string[];
-  vocabulary: string[];
-  reviewQuestions: string[];
-  challenge?: string | null;
+  sections: StudyArticleSection[];
+  reviewQuestions?: string[] | null;
 }
 
 export interface ConstraintReveal {
@@ -156,7 +153,62 @@ export interface DiscussionConversationPlan extends ConversationPlanBase {
   mode: 'DISCUSSION';
   sections: DiscussionSection[];
 }
-export type ConversationPlan = InterviewConversationPlan | DiscussionConversationPlan;
+export type ExplanationSpeakerMode = 'instructor_solo' | 'dialogue';
+export type ExplanationDialogueReason =
+  | 'comparison'
+  | 'tradeoff'
+  | 'misconception'
+  | 'ambiguous_case'
+  | 'decision_review'
+  | 'interview_practice';
+export interface ExplanationSection {
+  id: string;
+  episodeBeat:
+    | 'HOOK'
+    | 'LEARNING_PROMISE'
+    | 'SETUP'
+    | 'DISCOVERY'
+    | 'GUIDED_PRACTICE'
+    | 'FAILURE'
+    | 'CORRECTION'
+    | 'INDEPENDENT_CHECK'
+    | 'MENTAL_MODEL'
+    | 'RECAP';
+  topic: string;
+  objective: string;
+  concept: string;
+  examples: string[];
+  realWorldCases: string[];
+  /** instructor_solo = INSTRUCTOR only; dialogue = CO_HOST + INSTRUCTOR when pedagogically justified */
+  speakerMode: ExplanationSpeakerMode;
+  /** Required when speakerMode is dialogue; null/omit for instructor_solo */
+  dialogueReason?: ExplanationDialogueReason | null;
+  coHostMoments: string[];
+  keyTakeaways: string[];
+  /** @deprecated Use coHostMoments — kept for persisted plans */
+  faqItems?: Array<{ question: string; answer: string }> | null;
+}
+export type ExplanationDeliveryApproach =
+  | 'solo_lecture'
+  | 'instructor_with_faq'
+  | 'guided_walkthrough';
+export interface ExplanationRunningScenario {
+  name: string;
+  description: string;
+  components: string[];
+}
+export interface ExplanationConversationPlan extends ConversationPlanBase {
+  mode: 'EXPLANATION';
+  centralQuestion: string;
+  runningScenario: ExplanationRunningScenario;
+  deliveryApproach: ExplanationDeliveryApproach;
+  deliveryRationale: string;
+  sections: ExplanationSection[];
+}
+export type ConversationPlan =
+  | InterviewConversationPlan
+  | DiscussionConversationPlan
+  | ExplanationConversationPlan;
 export interface StudyPlanContext {
   title: string;
   goal: string;
@@ -175,8 +227,32 @@ export interface CreateConversationPlanInput {
   targetMinutes: number;
 }
 
-export type PodcastSpeaker = 'INTERVIEWER' | 'CANDIDATE' | 'ENGINEER_A' | 'ENGINEER_B' | 'HOST';
+export type PodcastSpeaker =
+  | 'INTERVIEWER'
+  | 'CANDIDATE'
+  | 'ENGINEER_A'
+  | 'ENGINEER_B'
+  | 'HOST'
+  | 'INSTRUCTOR'
+  | 'CO_HOST';
+export type DialogueRole =
+  | 'HOOK'
+  | 'QUESTION'
+  | 'EXPLAIN'
+  | 'EXAMPLE'
+  | 'CHALLENGE'
+  | 'ANSWER'
+  | 'CORRECTION'
+  | 'RECAP'
+  | 'TRANSITION';
+export type DeliveryStyle =
+  | 'normal'
+  | 'reflective'
+  | 'conversational'
+  | 'energetic'
+  | 'question';
 export interface DeliveryDirection {
+  style?: DeliveryStyle | null;
   tone?: 'neutral' | 'curious' | 'skeptical' | 'thoughtful' | 'confident' | 'concerned' | null;
   pace?: 'slow' | 'medium' | 'fast' | null;
   emphasis?: string[] | null;
@@ -189,6 +265,7 @@ export interface PodcastTurn {
   text: string;
   sectionId: string;
   sequence: number;
+  role?: DialogueRole | null;
   delivery?: DeliveryDirection | null;
 }
 export interface RawPodcastScript {
@@ -238,6 +315,7 @@ export interface StudySession {
   audioDownloadUrl?: string;
   audioExternalId?: string;
   notionPageId?: string;
+  notionScriptPageId?: string;
   notionUrl?: string;
   generationModel?: string;
   conversationModel?: string;

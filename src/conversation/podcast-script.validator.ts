@@ -1,10 +1,59 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ConversationPlan, PodcastScript } from '../domain/models';
+import {
+  ConversationPlan,
+  ExplanationConversationPlan,
+  PodcastScript,
+} from '../domain/models';
+
 @Injectable()
 export class PodcastScriptValidator {
   constructor(private readonly config: ConfigService) {}
+
   validate(script: PodcastScript, plan: ConversationPlan, targetMinutes: number): void {
+    if (plan.mode === 'EXPLANATION') {
+      this.validateExplanation(script, plan);
+      return;
+    }
+    this.validateDialogue(script, plan, targetMinutes);
+  }
+
+  private validateExplanation(script: PodcastScript, plan: ExplanationConversationPlan): void {
+    const errors: string[] = [];
+    const speakers = new Set(script.turns.map((turn) => turn.speaker));
+    const hasNarrator = speakers.has('INSTRUCTOR') || speakers.has('HOST');
+    if (!hasNarrator) errors.push('Missing required narrator (INSTRUCTOR or HOST)');
+    if (plan.deliveryApproach === 'solo_lecture' && speakers.has('CO_HOST')) {
+      errors.push('solo_lecture plan should not include CO_HOST turns');
+    }
+    for (const section of plan.sections) {
+      const mode = section.speakerMode ?? 'instructor_solo';
+      if (mode !== 'instructor_solo') continue;
+      const hasCoHost = script.turns.some(
+        (turn) => turn.sectionId === section.id && turn.speaker === 'CO_HOST',
+      );
+      if (hasCoHost) {
+        errors.push(`Section ${section.id} is instructor_solo and must not include CO_HOST turns`);
+      }
+    }
+    if (script.turns.length < 1) errors.push('Script must have at least one turn');
+    if (script.turns.some((turn) => !turn.text.trim())) errors.push('Empty turn');
+    if (script.turns.some((turn, index) => turn.sequence !== index))
+      errors.push('Turn sequence must be contiguous and zero-based');
+    const maxChars = this.config.get<number>('PODCAST_MAX_TURN_CHARACTERS', 1200);
+    if (script.turns.some((turn) => turn.text.length > maxChars))
+      errors.push(`Turn exceeds ${maxChars} characters`);
+    const represented = new Set(script.turns.map((turn) => turn.sectionId));
+    for (const section of plan.sections)
+      if (!represented.has(section.id)) errors.push(`Missing section ${section.id}`);
+    if (errors.length) throw new Error(`Invalid podcast script: ${errors.join('; ')}`);
+  }
+
+  private validateDialogue(
+    script: PodcastScript,
+    plan: ConversationPlan,
+    targetMinutes: number,
+  ): void {
     const errors: string[] = [];
     const speakers = new Set(script.turns.map((turn) => turn.speaker));
     const requiredSpeakers =

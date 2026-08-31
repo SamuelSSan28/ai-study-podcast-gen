@@ -1,23 +1,26 @@
 import { CreateConversationPlanInput } from '../../../domain/models';
+import {
+  formatPlannerSourceArticle,
+  PLANNER_ARTICLE_FIDELITY,
+} from '../scope-discipline';
 
-export const DISCUSSION_PLANNER_PROMPT_VERSION = 'conversation-planner.discussion.v1';
+export const DISCUSSION_PLANNER_PROMPT_VERSION = 'conversation-planner.discussion.v3';
 
 export function buildDiscussionPlannerPrompt(input: CreateConversationPlanInput): string {
-  return `Planeje uma discussão técnica natural de ${input.targetMinutes} minutos entre dois engenheiros de software experientes.
+  return `Plan a natural ${input.targetMinutes}-minute technical discussion between two experienced software engineers.
 
-Isto não é uma entrevista. Ambos são pares e exploram colaborativamente um sistema em produção. Não escreva diálogo. Crie uma discussão evolutiva: problema de negócio → arquitetura inicial → trade-offs → novas restrições → abordagens alternativas → refinamento da arquitetura → incidente em produção → confiabilidade/observabilidade → reflexão final.
+This is not an interview. Both are peers collaboratively exploring the topic in the source article. Do not write dialogue. Structure the discussion around the concepts, examples, and progression in the article — do not invent adjacent architecture topics, production incidents, or tooling unless they appear in the article.
 
-Para cada seção defina entryPoint, discussionGoal, conceptsToExplore, tensions, questionsToNaturallyRaise, scenarioReveals, possibleDisagreement e connectionToPreviousSection. Defina mode como DISCUSSION.
+For each section define entryPoint, discussionGoal, conceptsToExplore, tensions, questionsToNaturallyRaise, scenarioReveals, possibleDisagreement, and connectionToPreviousSection. Set mode to DISCUSSION.
 
-Regras:
-- Mantenha foco neste projeto, não em perguntas backend independentes.
-- Não force tecnologias; ambos os engenheiros contribuem com ideias relevantes.
-- Restrições posteriores desafiam premissas anteriores.
-- Inclua um incidente realista em produção sem revelar a causa raiz.
-- Todo o conteúdo planejado deve estar em português brasileiro.
+Rules:
+- Keep focus on this topic's article content, not independent backend trivia.
+- Do not force technologies absent from the article; both engineers discuss what the article teaches.
+- Later sections should deepen article concepts, not introduce new ones.
 
-Contexto do plano: ${JSON.stringify(input.studyPlanContext)}
-Tópico: ${JSON.stringify(input.topic)}
-Fonte técnica: ${JSON.stringify(input.technicalContent)}
-Sessões anteriores (apenas contexto): ${JSON.stringify(input.previousSessions ?? [])}`;
+${PLANNER_ARTICLE_FIDELITY}
+
+${formatPlannerSourceArticle(input)}
+Previous sessions (background only — do not expand scope): ${JSON.stringify(input.previousSessions ?? [])}
+Study plan context (background only): ${JSON.stringify(input.studyPlanContext)}`;
 }

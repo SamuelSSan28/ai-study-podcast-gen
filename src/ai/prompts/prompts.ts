@@ -1,21 +1,50 @@
 import { PlanGenerationInput } from '../../application/ports';
-import { StudyContent, StudyPlanTopic } from '../../domain/models';
+import { StudyPlanTopic } from '../../domain/models';
+import { seedArticleOutline } from '../../domain/article-outline';
+import {
+  NOTION_ARTICLE_RULES,
+  NOTION_PLAN_OVERVIEW_RULES,
+} from '../../persistence/notion-format.contract';
+import { ARTICLE_SCOPE_DISCIPLINE, formatLearningObjectives } from './scope-discipline';
+
 export const PROMPT_VERSIONS = {
-  plan: 'study-plan.v2',
-  content: 'study-content.v2',
-  script: 'podcast-script.v1',
+  plan: 'study-plan.v4',
+  content: 'study-content.v6',
+  script: 'podcast-script.v2',
   duplicate: 'duplicate.v1',
 } as const;
 export function buildPlanPrompt(input: PlanGenerationInput): string {
-  return `Crie um currículo completo e progressivo em português brasileiro intitulado "${input.title}" para este objetivo: ${input.goal}. São ${input.durationWeeks} semanas e ${input.sessionsPerWeek} sessões por semana. Retorne exatamente ${input.durationWeeks * input.sessionsPerWeek} tópicos ordenados. Avance por FOUNDATION, CORE, INTERMEDIATE, ADVANCED e APPLIED, terminando em um caso de uso realista ou aplicação prática/entrevista. Cada tópico deve ser estudável de forma independente em uma sessão de ${input.targetSessionMinutes} minutos e nunca exigir mais de 60 minutos; divida assuntos amplos (por exemplo Kafka) em conceitos focados como fundamentos, partições, grupos, offsets, rebalanceamento e semânticas de entrega. Títulos, descrições, objetivos e pré-requisitos devem estar em português brasileiro natural. Os objetivos devem ser concretos, os pré-requisitos devem referenciar títulos anteriores e sessões adjacentes devem avançar em vez de repetir.`;
+  return `Create a complete, progressive curriculum titled "${input.title}" for this goal: ${input.goal}. It spans ${input.durationWeeks} weeks with ${input.sessionsPerWeek} sessions per week. Return exactly ${input.durationWeeks * input.sessionsPerWeek} ordered topics. Progress through FOUNDATION, CORE, INTERMEDIATE, ADVANCED, and APPLIED, ending in a realistic use case or practical/interview application. Each topic must be independently studyable in one session; set estimatedMinutes (30–60) based on topic complexity rather than a fixed duration. Split broad subjects (for example Kafka) into focused concepts such as fundamentals, partitions, consumer groups, offsets, rebalancing, and delivery semantics. Titles, descriptions, objectives, and prerequisites must read naturally for spoken technical study. Objectives must be concrete, prerequisites must reference earlier titles, and adjacent sessions must advance rather than repeat.
+
+${NOTION_PLAN_OVERVIEW_RULES}`;
 }
 export function buildContentPrompt(topic: StudyPlanTopic, context: string): string {
-  return `Escreva um artigo técnico em português brasileiro para "${topic.title}": ${topic.description}. Alvo de aproximadamente ${topic.estimatedMinutes} minutos para a sessão completa de artigo mais áudio. Cubra requisitos, premissas, arquitetura e evolução, APIs/propriedade de dados/comunicação assíncrona quando relevante, consistência, concorrência, idempotência, retries, escalabilidade, observabilidade, incidentes, trade-offs, erros comuns, vocabulário e perguntas de revisão. Não force tecnologias irrelevantes. A pesquisa fornecida é a fonte factual para artigo e podcast; não a contradiga e represente suas fontes no conteúdo.\nPesquisa e contexto local:\n${context}`;
-}
-export function buildScriptPrompt(
-  topic: StudyPlanTopic,
-  content: StudyContent,
-  minutes: number,
-): string {
-  return `Crie uma entrevista técnica natural e autocontida de ${minutes} minutos sobre ${topic.title}. Use falas ordenadas de INTERVIEWER e CANDIDATE; HOST só no início/fim breve. O entrevistador revela restrições gradualmente e desafia decisões. O candidato faz perguntas de esclarecimento, pensa em voz alta, explica trade-offs e pode reconsiderar. Português brasileiro falado, claro e conciso. Nunca mencione material de estudo, documento, prompt, lição ou exercício. Fonte técnica:\n${JSON.stringify(content)}`;
+  const outline = seedArticleOutline(topic);
+  const sectionGuide = outline.sections
+    .map((section) => `- ${section.title}${section.promptHint ? `: ${section.promptHint}` : ''}`)
+    .join('\n');
+  const objectives = formatLearningObjectives(topic);
+
+  return `Write a didactic technical article for "${topic.title}": ${topic.description}.
+Explain concepts clearly for a learner — like a well-structured class write-up, not a transcript.
+
+LEARNING OBJECTIVES
+${objectives}
+
+Suggested section structure (adapt section titles only if learning objectives require it):
+${sectionGuide}
+
+${ARTICLE_SCOPE_DISCIPLINE}
+
+Structure sections so foundational explanations (definitions, mental models, short examples) are clearly separated from decision points (comparisons, trade-offs, "when to choose X vs Y"). The podcast script will use solo narration for foundations and dialogue only at decision points.
+
+The provided research is the factual source for this article; do not contradict it and represent its sources in the content. The podcast script will be generated from this article — do not write content meant only for spoken delivery.
+
+Research and local context:
+${context}
+
+${NOTION_ARTICLE_RULES}
+
+Return structured sections with semantic blocks (paragraph, heading, bullet_list, numbered_list, quote, callout, code, divider, table).
+Each section must directly serve the learning objectives.`;
 }

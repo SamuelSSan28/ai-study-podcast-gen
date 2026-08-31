@@ -304,6 +304,23 @@
   padding-top: 1rem;
   border-top: 1px solid #dee2e6;
 }
+.topic-studied-check {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+.topic-studied-check .form-check-input {
+  margin-top: 0.2rem;
+}
+.topic-studied-check .form-check-label {
+  font-weight: 500;
+}
+.topic-studied-check .form-text {
+  margin-top: 0.25rem;
+  margin-left: 1.5rem;
+}
 .content-actions {
   display: flex;
   flex-wrap: wrap;

@@ -12,6 +12,7 @@ import {
   StudyTopicRepository,
 } from '../application/ports';
 import { DiscordNotifier } from '../notifications/discord.notifier';
+import { NotionContentPublisher } from '../persistence/notion-content.publisher';
 import { PlanJob, STUDY_PLANS_QUEUE } from './queue.service';
 import { QueueService } from './queue.service';
 import { StudyPlanProvisioningStatus, StudySession } from '../domain/models';
@@ -28,6 +29,7 @@ export class StudyPlansProcessor extends WorkerHost {
     @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
     private readonly queue: QueueService,
     private readonly notifier: DiscordNotifier,
+    private readonly notion: NotionContentPublisher,
   ) {
     super();
   }
@@ -73,9 +75,22 @@ export class StudyPlansProcessor extends WorkerHost {
       }
 
       const needsNotionSync =
-        !plan?.notionPageId || topics.some((topic) => !topic.notionPageId);
-      if (needsNotionSync) {
-        await this.queue.enqueueNotionPlanFinalized(planId);
+        !plan?.notionPageId ||
+        !plan?.notionTopicsDbId ||
+        topics.some((topic) => !topic.notionPageId);
+      if (needsNotionSync && plan) {
+        try {
+          const result = await this.notion.publishFinalizedPlan(plan, topics);
+          for (const topic of result.topics) {
+            if (topic.notionPageId) await this.topics.update(topic);
+          }
+          await this.plans.updatePlan(result.plan);
+          plan = result.plan;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Inline Notion plan publish failed for ${planId}: ${message}`);
+          await this.queue.enqueueNotionPlanFinalized(planId);
+        }
       }
 
       const session = await this.resumeOrGenerateFirstSession(planId);

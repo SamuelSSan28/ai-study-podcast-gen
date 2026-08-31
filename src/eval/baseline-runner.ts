@@ -37,7 +37,7 @@ export async function runBaselineCase(
 
   const config = new ConfigService(process.env);
   const client = new OpenAI({ apiKey: config.getOrThrow<string>('OPENAI_API_KEY') });
-  const model = config.get<string>('OPENAI_CONTENT_MODEL', 'gpt-5.5');
+  const model = config.get<string>('ARTICLE_MODEL', 'gpt-5.6-terra');
 
   try {
     trace.startStage('generic_generation');

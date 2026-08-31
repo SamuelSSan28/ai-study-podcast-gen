@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { validateEnvironment } from './config/env.schema';
 import { AiModelConfig } from './config/ai-model.config';
 import { GenerationTokenGuard } from './common/auth/generation-token.guard';
+import { KokoroTtsClient } from './audio/kokoro-tts.client';
 import { LocalAudioService } from './audio/local-audio.service';
 import { AudioController } from './audio/audio.controller';
 import { OpenAiGateway } from './ai/openai.gateway';
@@ -59,6 +60,7 @@ import { NotionProcessor } from './queue/notion.processor';
     AiModelConfig,
     { provide: APP_GUARD, useClass: GenerationTokenGuard },
     LocalAudioService,
+    KokoroTtsClient,
     GoogleDriveAudioStorage,
     LocalAudioStorage,
     {
