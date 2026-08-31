@@ -15,14 +15,20 @@ export const TOPIC_REPOSITORY = Symbol('TOPIC_REPOSITORY');
 export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
 export const AUDIO_STORAGE = Symbol('AUDIO_STORAGE');
 export interface StudyPlanRepository {
-  create(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<StudyPlan>;
+  createPending(plan: StudyPlan): Promise<StudyPlan>;
+  finalizePlan(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<StudyPlan>;
   findAll(): Promise<StudyPlan[]>;
   findById(id: string): Promise<StudyPlan | null>;
+  findByIdempotencyKey(key: string): Promise<StudyPlan | null>;
+  findActiveByGoal(goal: string): Promise<StudyPlan | null>;
+  findInFlightByGoal(goal: string): Promise<StudyPlan | null>;
   findActive(): Promise<StudyPlan[]>;
   updatePlan(plan: StudyPlan): Promise<void>;
+  archivePlan(id: string): Promise<void>;
 }
 export interface StudyTopicRepository {
   findTopicById(id: string): Promise<StudyPlanTopic | null>;
+  findTopicsByPlan(planId: string): Promise<StudyPlanTopic[]>;
   findPlanned(planId: string): Promise<StudyPlanTopic[]>;
   findReady(planId: string): Promise<StudyPlanTopic[]>;
   findCompleted(planId: string): Promise<StudyPlanTopic[]>;

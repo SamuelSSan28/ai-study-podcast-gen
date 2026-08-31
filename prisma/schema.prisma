@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model StudyPlan {
+  id                   String   @id
+  title                String
+  goal                 String
+  level                String
+  durationWeeks        Int
+  sessionsPerWeek      Int
+  preferredDays        String
+  startDate            String
+  endDate              String
+  status               String
+  provisioningStatus   String
+  idempotencyKey       String   @unique
+  provisioningError    String?
+  overview             String   @default("")
+  notionPageId         String?
+  notionUrl            String?
+  targetSessionMinutes Int
+  currentTopicId       String?
+  createdAt            DateTime
+  updatedAt            DateTime @updatedAt
+
+  topics   StudyPlanTopic[]
+  sessions StudySession[]
+
+  @@index([status])
+}
+
+model StudyPlanTopic {
+  id           String    @id
+  studyPlanId  String
+  studyPlan    StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  payload      String
+  status       String
+  studied      Boolean   @default(false)
+  order        Int
+  scheduledAt  String
+  week         Int
+  sequence     Int
+  notionPageId String?
+
+  @@index([studyPlanId, status])
+  @@index([studyPlanId, order])
+}
+
+model StudySession {
+  id            String    @id
+  studyPlanId   String
+  studyPlan     StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  topicId       String
+  generationKey String    @unique
+  stage         String
+  payload       String
+  createdAt     DateTime
+  completedAt   DateTime?
+  notionPageId  String?
+
+  @@index([studyPlanId])
+}

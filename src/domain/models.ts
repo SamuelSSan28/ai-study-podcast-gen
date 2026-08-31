@@ -1,4 +1,5 @@
 export type PlanStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+export type StudyPlanProvisioningStatus = 'CREATING' | 'GENERATING' | 'READY' | 'FAILED';
 export type PodcastMode = 'INTERVIEW' | 'DISCUSSION';
 export type TopicStatus = 'PLANNED' | 'GENERATING' | 'READY' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
 export type SessionStage =
@@ -31,6 +32,9 @@ export interface StudyPlan {
   startDate: string;
   endDate: string;
   status: PlanStatus;
+  provisioningStatus: StudyPlanProvisioningStatus;
+  idempotencyKey: string;
+  provisioningError?: string;
   overview: string;
   notionPageId?: string;
   notionUrl?: string;
