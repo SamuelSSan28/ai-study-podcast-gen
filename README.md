@@ -88,28 +88,12 @@ npm run start:dev
 
 ### Docker Compose
 
-**First time** (or after changing `package.json` / `Dockerfile`):
-
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-**Day-to-day dev** — no rebuild; `nest start --watch` reloads on save:
-
-```bash
-docker compose up
-# or, with Compose Watch (sync + auto-rebuild only when deps change):
-docker compose watch
-```
-
-Compose mounts `src/`, `web/`, `prisma/` and Nest config files into the container, enables file polling for watch inside Docker, keeps `node_modules` in a named volume, persists SQLite in `./data`, audio in the `podcast-audio` volume, and starts **Redis** for BullMQ.
-
-After editing `prisma/schema.prisma`, run migrations inside the container once:
-
-```bash
-docker compose exec app npm run db:migrate
-```
+Compose mounts `src/` and `web/` for hot reload, persists SQLite in `./data`, audio in the `podcast-audio` volume, and starts **Redis** for BullMQ.
 
 ## Hackathon submission (micro1 Agentic Workflows)
 
@@ -148,6 +132,7 @@ npm run eval:all          # full automated pipeline
 - [API reference](docs/api.md)
 - [curl examples (generate roadmaps & episodes)](docs/curl-examples.md)
 - [Environment variables](docs/environment.md)
+- [OpenAI integration (Responses API, schemas, TTS)](docs/openai-integration.md)
 - [Architecture plan](docs/architecture-and-implementation-plan.md)
 - [Evaluation README](evaluation/README.md)
 
