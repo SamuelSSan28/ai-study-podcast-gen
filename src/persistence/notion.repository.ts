@@ -57,10 +57,16 @@ export class NotionRepository
     });
     await this.client.blocks.children.append({
       block_id: plan.notionPageId,
-      children: this.blocks([plan.overview]),
+      children: this.blocks([
+        plan.overview,
+        'Currículo',
+        ...topics
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((topic) => `${topic.order}. ${topic.title}`),
+      ]),
     });
     for (const topic of topics) await this.createTopic(topic);
-    await this.createWeekPages(plan.notionPageId, topics);
     return plan;
   }
   async findAll(): Promise<StudyPlan[]> {
@@ -261,31 +267,19 @@ export class NotionRepository
       });
   }
   private async createTopic(topic: StudyPlanTopic): Promise<void> {
+    if (topic.notionPageId) {
+      await this.client.pages.update({
+        page_id: topic.notionPageId,
+        properties: this.topicProperties(topic) as never,
+      });
+      return;
+    }
     const page = await this.client.pages.create({
       parent: { database_id: this.sessionsDb },
       properties: this.topicProperties(topic) as never,
       children: this.blocks([topic.description, ...topic.learningObjectives]),
     });
     topic.notionPageId = page.id;
-  }
-  private async createWeekPages(planPageId: string, topics: StudyPlanTopic[]): Promise<void> {
-    const weeks = new Map<number, StudyPlanTopic[]>();
-    for (const topic of topics) weeks.set(topic.week, [...(weeks.get(topic.week) ?? []), topic]);
-    for (const [week, weekTopics] of [...weeks].sort(([a], [b]) => a - b)) {
-      await this.client.pages.create({
-        parent: { type: 'page_id', page_id: planPageId },
-        properties: {
-          title: this.title(`Week ${week.toString().padStart(2, '0')}`),
-        },
-        children: weekTopics
-          .sort((a, b) => a.sequence - b.sequence)
-          .map((topic) => ({
-            object: 'block',
-            type: 'link_to_page',
-            link_to_page: { type: 'page_id', page_id: topic.notionPageId },
-          })),
-      } as never);
-    }
   }
   private async updateTopic(topic: StudyPlanTopic): Promise<void> {
     if (!topic.notionPageId) throw new Error('Topic has no Notion page');

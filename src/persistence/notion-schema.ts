@@ -48,7 +48,7 @@ export const NOTION_DATABASE_PROPERTIES = {
 export const NOTION_SELECT_OPTIONS = {
   plans: {
     Status: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
-    Provisioning: ['Creating', 'Generating', 'Ready', 'Failed'],
+    Provisioning: ['Gerando', 'Pronto', 'Falhou'],
     'Preferred Days': [
       'MONDAY',
       'TUESDAY',
@@ -62,16 +62,15 @@ export const NOTION_SELECT_OPTIONS = {
   records: {
     'Record Type': ['TOPIC', 'SESSION'],
     Status: [
-      'Planned',
-      'Generating',
-      'Ready',
-      'Done',
-      'Failed',
-      'Research',
-      'Content',
-      'Script',
-      'Audio',
-      'Upload',
+      'Planejado',
+      'Gerando',
+      'Pronto',
+      'Concluído',
+      'Falhou',
+      'Pesquisa',
+      'Roteiro',
+      'Áudio',
+      'Envio',
     ],
     Level: ['FOUNDATION', 'CORE', 'INTERMEDIATE', 'ADVANCED', 'APPLIED'],
   },

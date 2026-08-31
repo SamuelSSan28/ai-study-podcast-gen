@@ -3,24 +3,25 @@ import {
   mapSessionStage,
   mapTopicStatus,
   sessionReadableBlocks,
+  topicArticleBlocks,
 } from '../src/persistence/notion-mappers';
-import { StudySession } from '../src/domain/models';
+import { StudyPlanTopic, StudySession } from '../src/domain/models';
 
 describe('notion-mappers', () => {
   it('maps provisioning status to human labels', () => {
-    expect(mapProvisioningStatus('CREATING')).toBe('Creating');
-    expect(mapProvisioningStatus('READY')).toBe('Ready');
+    expect(mapProvisioningStatus('CREATING')).toBe('Gerando');
+    expect(mapProvisioningStatus('READY')).toBe('Pronto');
   });
 
   it('maps session stages without raw enum names', () => {
-    expect(mapSessionStage('AUDIO_GENERATING')).toBe('Audio');
-    expect(mapSessionStage('COMPLETED')).toBe('Done');
-    expect(mapSessionStage('FAILED')).toBe('Failed');
+    expect(mapSessionStage('AUDIO_GENERATING')).toBe('Áudio');
+    expect(mapSessionStage('COMPLETED')).toBe('Concluído');
+    expect(mapSessionStage('FAILED')).toBe('Falhou');
   });
 
   it('maps topic status', () => {
-    expect(mapTopicStatus('PLANNED')).toBe('Planned');
-    expect(mapTopicStatus('COMPLETED')).toBe('Done');
+    expect(mapTopicStatus('PLANNED')).toBe('Planejado');
+    expect(mapTopicStatus('COMPLETED')).toBe('Concluído');
   });
 
   it('builds readable session blocks without JSON prefixes', () => {
@@ -56,9 +57,48 @@ describe('notion-mappers', () => {
     const blocks = sessionReadableBlocks(session, 'http://localhost:3000/?plan=plan-1');
     const joined = blocks.join('\n');
     expect(joined).not.toMatch(/_JSON:/);
-    expect(joined).toContain('Research summary text');
-    expect(joined).toContain('Podcast Script');
+    expect(joined).toContain('Resumo da pesquisa');
+    expect(joined).toContain('Roteiro do podcast');
     expect(joined).toContain('Host:');
     expect(joined).toContain('http://localhost:3000/?plan=plan-1');
+  });
+
+  it('builds topic article blocks with subtopic TOC', () => {
+    const topic = {
+      id: 't1',
+      studyPlanId: 'p1',
+      title: 'Kafka basics',
+      slug: 'kafka',
+      description: 'Intro',
+      week: 1,
+      sequence: 1,
+      difficulty: 'FOUNDATIONAL',
+      tags: [],
+      learningObjectives: ['Understand brokers'],
+      prerequisites: [],
+      depthDelta: '',
+      summary: 'Summary of kafka',
+      status: 'PLANNED',
+      order: 1,
+      level: 'FOUNDATION',
+      estimatedMinutes: 45,
+      scheduledAt: '2026-01-01',
+      studied: false,
+      articleOutline: {
+        sections: [{ id: 'overview', title: 'Visão geral', promptHint: 'Explain Kafka' }],
+      },
+    } as StudyPlanTopic;
+    const blocks = topicArticleBlocks({
+      topic,
+      dashboardUrl: 'http://localhost:3000/?plan=p1',
+    });
+    const types = blocks.map((b) => b.type);
+    expect(types).toContain('heading_2');
+    expect(types).toContain('numbered_list_item');
+    const headings = blocks
+      .filter((b) => b.type === 'heading_2')
+      .map((b) => ('heading_2' in b ? b.heading_2.rich_text[0].text.content : ''));
+    expect(headings).toContain('Kafka basics');
+    expect(headings).toContain('Neste artigo');
   });
 });

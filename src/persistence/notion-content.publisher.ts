@@ -2,13 +2,20 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@notionhq/client';
 import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { seedArticleOutline } from '../domain/article-outline';
 import {
   mapProvisioningStatus,
   mapSessionStage,
   mapTopicStatus,
+  NotionBlock,
+  planBodyBlocks,
   sessionReadableBlocks,
+  topicArticleBlocks,
 } from './notion-mappers';
+import { findPageByAppId } from './notion-query';
 import { NotionSchemaProvisioner } from './notion-schema';
+
+const PAGE_LIKE_BLOCK_TYPES = new Set(['child_page', 'child_database']);
 
 @Injectable()
 export class NotionContentPublisher implements OnModuleInit {
@@ -49,178 +56,207 @@ export class NotionContentPublisher implements OnModuleInit {
 
   async publishPendingPlan(plan: StudyPlan): Promise<StudyPlan> {
     await this.ensureReady();
-    try {
-      const page = await this.client.pages.create({
-        parent: { database_id: this.plansDb },
+    if (plan.notionPageId) return plan;
+
+    const existing = await findPageByAppId(this.client, this.plansDb, plan.id);
+    if (existing) {
+      plan.notionPageId = existing.id;
+      plan.notionUrl = existing.url;
+      await this.client.pages.update({
+        page_id: existing.id,
         properties: this.planProperties(plan) as never,
-        children: this.blocks([
-          'Plan generation in progress…',
-          `Open in dashboard → ${this.planDashboardUrl(plan.id)}`,
-        ]),
       });
-      plan.notionPageId = page.id;
-      plan.notionUrl = 'url' in page ? page.url : undefined;
-    } catch (error) {
-      this.logger.warn(
-        `Notion publish pending plan failed: ${error instanceof Error ? error.message : error}`,
-      );
+      return plan;
     }
+
+    const page = await this.client.pages.create({
+      parent: { database_id: this.plansDb },
+      properties: this.planProperties(plan) as never,
+      children: this.plainBlocks([
+        'Plan generation in progress…',
+        `Open in dashboard → ${this.planDashboardUrl(plan.id)}`,
+      ]),
+    });
+    plan.notionPageId = page.id;
+    plan.notionUrl = 'url' in page ? page.url : undefined;
     return plan;
   }
 
-  async publishFinalizedPlan(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<void> {
+  async publishFinalizedPlan(
+    plan: StudyPlan,
+    topics: StudyPlanTopic[],
+  ): Promise<{ plan: StudyPlan; topics: StudyPlanTopic[] }> {
     await this.ensureReady();
-    try {
-      if (!plan.notionPageId) {
-        plan = await this.publishPendingPlan(plan);
-      }
-      if (!plan.notionPageId) return;
-      await this.client.pages.update({
-        page_id: plan.notionPageId,
-        properties: this.planProperties(plan) as never,
-      });
-      await this.replacePageBody(plan.notionPageId, [
-        plan.overview || 'Overview pending…',
-        '',
-        `Open in dashboard → ${this.planDashboardUrl(plan.id)}`,
-      ]);
-      for (const topic of topics) await this.createTopic(topic);
-      await this.createWeekPages(plan.notionPageId, topics);
-    } catch (error) {
-      this.logger.warn(
-        `Notion publish finalized plan failed: ${error instanceof Error ? error.message : error}`,
-      );
+    if (!plan.notionPageId) {
+      plan = await this.publishPendingPlan(plan);
     }
+    if (!plan.notionPageId) {
+      throw new Error('Notion plan page could not be created or resolved');
+    }
+
+    await this.client.pages.update({
+      page_id: plan.notionPageId,
+      properties: this.planProperties(plan) as never,
+    });
+
+    await this.clearPageContent(plan.notionPageId);
+    await this.replacePageBodyBlocks(
+      plan.notionPageId,
+      planBodyBlocks(plan.overview, topics, this.planDashboardUrl(plan.id)),
+      { skipClear: true },
+    );
+
+    for (const topic of topics) {
+      await this.upsertTopic(topic);
+    }
+
+    return { plan, topics };
   }
 
-  async publishSession(session: StudySession, topicTitle?: string): Promise<StudySession> {
+  async publishSession(
+    session: StudySession,
+    topic?: StudyPlanTopic,
+  ): Promise<{ session: StudySession; topic?: StudyPlanTopic }> {
     await this.ensureReady();
-    try {
-      if (!session.notionPageId) {
-        const page = await this.client.pages.create({
-          parent: { database_id: this.sessionsDb },
-          properties: this.sessionProperties(session, topicTitle) as never,
-        });
-        session.notionPageId = page.id;
-        session.notionUrl = 'url' in page ? page.url : undefined;
-      } else {
-        await this.client.pages.update({
-          page_id: session.notionPageId,
-          properties: this.sessionProperties(session, topicTitle) as never,
-        });
+    if (!session.notionPageId) {
+      const existing = await findPageByAppId(this.client, this.sessionsDb, session.id, 'SESSION');
+      if (existing) {
+        session.notionPageId = existing.id;
+        session.notionUrl = existing.url;
       }
-      const body = sessionReadableBlocks(session, this.sessionDashboardUrl(session));
-      if (body.length) {
-        await this.replacePageBody(session.notionPageId!, body);
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Notion publish session failed: ${error instanceof Error ? error.message : error}`,
-      );
     }
-    return session;
+
+    if (!session.notionPageId) {
+      const page = await this.client.pages.create({
+        parent: { database_id: this.sessionsDb },
+        properties: this.sessionProperties(session, topic?.title) as never,
+      });
+      session.notionPageId = page.id;
+      session.notionUrl = 'url' in page ? page.url : undefined;
+    } else {
+      await this.client.pages.update({
+        page_id: session.notionPageId,
+        properties: this.sessionProperties(session, topic?.title) as never,
+      });
+    }
+
+    const body = sessionReadableBlocks(session, this.sessionDashboardUrl(session));
+    if (body.length) {
+      await this.replacePageBody(session.notionPageId!, body);
+    }
+
+    if (topic) {
+      if (!topic.articleOutline) topic.articleOutline = seedArticleOutline(topic);
+      await this.upsertTopic(topic, session);
+    }
+
+    return { session, topic };
   }
 
   async publishTopicUpdate(topic: StudyPlanTopic): Promise<void> {
     await this.ensureReady();
     if (!topic.notionPageId) return;
-    try {
-      await this.client.pages.update({
-        page_id: topic.notionPageId,
-        properties: this.topicProperties(topic) as never,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Notion publish topic update failed: ${error instanceof Error ? error.message : error}`,
-      );
-    }
+    await this.client.pages.update({
+      page_id: topic.notionPageId,
+      properties: this.topicProperties(topic) as never,
+    });
   }
 
   async archivePlan(plan: StudyPlan, topics: StudyPlanTopic[]): Promise<void> {
     await this.ensureReady();
-    try {
-      for (const topic of topics) {
-        if (topic.notionPageId) {
-          await this.client.pages.update({ page_id: topic.notionPageId, archived: true });
-        }
+    for (const topic of topics) {
+      if (topic.notionPageId) {
+        await this.client.pages.update({ page_id: topic.notionPageId, archived: true });
       }
-      if (plan.notionPageId) {
-        await this.archiveChildPages(plan.notionPageId);
-        await this.client.pages.update({ page_id: plan.notionPageId, archived: true });
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Notion archive plan failed: ${error instanceof Error ? error.message : error}`,
-      );
+    }
+    if (plan.notionPageId) {
+      await this.clearPageContent(plan.notionPageId);
+      await this.client.pages.update({ page_id: plan.notionPageId, archived: true });
     }
   }
 
-  private async createTopic(topic: StudyPlanTopic): Promise<void> {
+  private async upsertTopic(topic: StudyPlanTopic, session?: StudySession): Promise<void> {
+    if (!topic.articleOutline) topic.articleOutline = seedArticleOutline(topic);
+    const article = topicArticleBlocks({
+      topic,
+      content: session?.content,
+      research: session?.research,
+      session,
+      dashboardUrl: this.planDashboardUrl(topic.studyPlanId),
+    });
+
+    if (!topic.notionPageId) {
+      const existing = await findPageByAppId(this.client, this.sessionsDb, topic.id, 'TOPIC');
+      if (existing) {
+        topic.notionPageId = existing.id;
+      }
+    }
+
+    if (topic.notionPageId) {
+      await this.client.pages.update({
+        page_id: topic.notionPageId,
+        properties: this.topicProperties(topic) as never,
+      });
+      await this.replacePageBodyBlocks(topic.notionPageId, article);
+      return;
+    }
+
     const page = await this.client.pages.create({
       parent: { database_id: this.sessionsDb },
       properties: this.topicProperties(topic) as never,
-      children: this.blocks([
-        topic.description,
-        ...topic.learningObjectives,
-        '',
-        `Open in dashboard → ${this.planDashboardUrl(topic.studyPlanId)}`,
-      ]),
+      children: article.slice(0, 100) as never,
     });
     topic.notionPageId = page.id;
-  }
-
-  private async createWeekPages(planPageId: string, topics: StudyPlanTopic[]): Promise<void> {
-    const weeks = new Map<number, StudyPlanTopic[]>();
-    for (const topic of topics) weeks.set(topic.week, [...(weeks.get(topic.week) ?? []), topic]);
-    for (const [week, weekTopics] of [...weeks].sort(([a], [b]) => a - b)) {
-      await this.client.pages.create({
-        parent: { type: 'page_id', page_id: planPageId },
-        properties: { title: this.title(`Week ${week.toString().padStart(2, '0')}`) },
-        children: weekTopics
-          .sort((a, b) => a.sequence - b.sequence)
-          .map((topic) => ({
-            object: 'block',
-            type: 'link_to_page',
-            link_to_page: { type: 'page_id', page_id: topic.notionPageId },
-          })),
-      } as never);
+    if (article.length > 100) {
+      await this.replacePageBodyBlocks(topic.notionPageId, article);
     }
   }
 
   private async replacePageBody(pageId: string, lines: string[]): Promise<void> {
-    await this.archiveChildBlocks(pageId);
-    const children = this.blocks(lines);
-    if (children.length) {
-      await this.client.blocks.children.append({ block_id: pageId, children });
+    await this.replacePageBodyBlocks(pageId, this.plainBlocks(lines));
+  }
+
+  private async replacePageBodyBlocks(
+    pageId: string,
+    children: NotionBlock[],
+    options?: { skipClear?: boolean },
+  ): Promise<void> {
+    if (!options?.skipClear) {
+      await this.clearPageContent(pageId);
+    }
+    for (let i = 0; i < children.length; i += 100) {
+      const chunk = children.slice(i, i + 100);
+      if (chunk.length) {
+        await this.client.blocks.children.append({
+          block_id: pageId,
+          children: chunk as never,
+        });
+      }
     }
   }
 
-  private async archiveChildBlocks(blockId: string): Promise<void> {
+  private async clearPageContent(pageId: string): Promise<void> {
     let cursor: string | undefined;
     do {
       const response = await this.client.blocks.children.list({
-        block_id: blockId,
+        block_id: pageId,
         start_cursor: cursor,
       });
       for (const block of response.results) {
-        if ('id' in block) {
-          await this.client.blocks.update({ block_id: block.id, archived: true });
-        }
-      }
-      cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
-    } while (cursor);
-  }
-
-  private async archiveChildPages(blockId: string): Promise<void> {
-    let cursor: string | undefined;
-    do {
-      const response = await this.client.blocks.children.list({
-        block_id: blockId,
-        start_cursor: cursor,
-      });
-      for (const block of response.results) {
-        if ('type' in block && block.type === 'child_page' && 'id' in block) {
-          await this.client.pages.update({ page_id: block.id, archived: true });
+        if (!('id' in block) || !('type' in block)) continue;
+        if ('archived' in block && block.archived) continue;
+        try {
+          if (PAGE_LIKE_BLOCK_TYPES.has(block.type)) {
+            await this.client.pages.update({ page_id: block.id, archived: true });
+          } else {
+            await this.client.blocks.update({ block_id: block.id, archived: true });
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Notion archive block ${block.id} (${block.type}) failed: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
         }
       }
       cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
@@ -297,17 +333,13 @@ export class NotionContentPublisher implements OnModuleInit {
     };
   }
 
-  private blocks(lines: string[]): Array<{
-    object: 'block';
-    type: 'paragraph';
-    paragraph: { rich_text: Array<{ type: 'text'; text: { content: string } }> };
-  }> {
+  private plainBlocks(lines: string[]): NotionBlock[] {
     return lines
       .flatMap((line) => line.match(/[\s\S]{1,1900}/g) ?? [])
       .map((content) => ({
-        object: 'block',
-        type: 'paragraph',
-        paragraph: { rich_text: [{ type: 'text', text: { content } }] },
+        object: 'block' as const,
+        type: 'paragraph' as const,
+        paragraph: { rich_text: [{ type: 'text' as const, text: { content } }] },
       }));
   }
 }
