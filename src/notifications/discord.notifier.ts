@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { LocalAudioService } from '../audio/local-audio.service';
-import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
 
 const DEFAULT_DISCORD_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const DISCORD_CONTENT_LIMIT = 2000;
@@ -19,12 +19,14 @@ export interface ProcessingFailureContext {
   plan?: StudyPlan;
   planId?: string;
   operation: string;
-  phase?: 'CREATING' | 'GENERATING';
+  phase?: 'CREATING' | 'GENERATING' | 'NOTION_PUBLISH';
   error: unknown;
 }
 
 @Injectable()
 export class DiscordNotifier {
+  private readonly logger = new Logger(DiscordNotifier.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly localAudio: LocalAudioService,
@@ -53,11 +55,94 @@ export class DiscordNotifier {
   }
 
   async notifyFailure(context: SessionFailureContext): Promise<void> {
-    await this.sendContent(this.buildFailureMessage(context));
+    await this.sendError(this.buildFailureMessage(context));
   }
 
   async notifyProcessingError(context: ProcessingFailureContext): Promise<void> {
-    await this.sendContent(this.buildProcessingErrorMessage(context));
+    await this.sendError(this.buildProcessingErrorMessage(context));
+  }
+
+  async notifyPlanStarted(plan: StudyPlan): Promise<void> {
+    await this.sendSuccess(
+      [
+        '📚 **Study plan started**',
+        '',
+        `**${plan.title}**`,
+        `Goal: ${plan.goal}`,
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ].join('\n'),
+    );
+  }
+
+  async notifyPlanProvisioning(plan: StudyPlan, phase: 'CREATING' | 'GENERATING'): Promise<void> {
+    const label = phase === 'CREATING' ? 'Generating curriculum' : 'Generating first episode';
+    await this.sendSuccess(
+      [
+        '⚙️ **Study plan provisioning**',
+        '',
+        `**${plan.title}**`,
+        `Phase: ${label}`,
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ].join('\n'),
+    );
+  }
+
+  async notifyPlanCurriculumReady(plan: StudyPlan, topicCount: number): Promise<void> {
+    await this.sendSuccess(
+      [
+        '✅ **Curriculum ready**',
+        '',
+        `**${plan.title}**`,
+        `${topicCount} topics`,
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ].join('\n'),
+    );
+  }
+
+  async notifyPlanReady(plan: StudyPlan): Promise<void> {
+    await this.sendSuccess(
+      [
+        '🎉 **Study plan ready**',
+        '',
+        `**${plan.title}**`,
+        'First episode completed — provisioning finished.',
+        plan.notionUrl ? `📖 Notion: ${plan.notionUrl}` : '',
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+
+  async notifyPlanRetry(plan: StudyPlan): Promise<void> {
+    await this.sendSuccess(
+      [
+        '🔁 **Study plan retry queued**',
+        '',
+        `**${plan.title}**`,
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ].join('\n'),
+    );
+  }
+
+  async notifyTopicStarted(
+    plan: StudyPlan,
+    topic: StudyPlanTopic,
+    mode: PodcastMode,
+  ): Promise<void> {
+    const objectives =
+      topic.learningObjectives.length > 0
+        ? `\nObjectives: ${topic.learningObjectives.slice(0, 3).join(' · ')}`
+        : '';
+    await this.sendSuccess(
+      [
+        `▶️ **Generating topic** (#${topic.order})`,
+        '',
+        `**${topic.title}**`,
+        `Plan: ${plan.title} · ${mode}${objectives}`,
+        `📊 Dashboard: ${this.dashboardUrl(plan.id)}`,
+      ].join('\n'),
+    );
   }
 
   private buildFailureMessage(context: SessionFailureContext): string {
@@ -119,7 +204,9 @@ export class DiscordNotifier {
         ? 'Generating curriculum'
         : context.phase === 'GENERATING'
           ? 'Generating first episode'
-          : undefined;
+          : context.phase === 'NOTION_PUBLISH'
+            ? 'Notion publish'
+            : undefined;
 
     const lines = ['🚨 **Plan Provisioning Failed**', ''];
     if (context.plan) {
@@ -185,16 +272,32 @@ export class DiscordNotifier {
     topic: StudyPlanTopic,
     options?: { localOnly?: boolean; fileSizeBytes?: number; maxBytes?: number },
   ): Promise<void> {
-    await this.sendContent(this.buildMessage(session, topic, options));
+    await this.sendSuccess(this.buildMessage(session, topic, options));
   }
 
-  private async sendContent(content: string): Promise<void> {
-    const response = await fetch(this.config.getOrThrow<string>('DISCORD_WEBHOOK_URL'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content: this.truncateDiscordContent(content) }),
-    });
-    if (!response.ok) throw new Error(`Discord webhook returned ${response.status}`);
+  private async sendSuccess(content: string): Promise<void> {
+    await this.postWebhook(this.config.getOrThrow<string>('DISCORD_WEBHOOK_URL'), content);
+  }
+
+  private async sendError(content: string): Promise<void> {
+    await this.postWebhook(this.config.getOrThrow<string>('DISCORD_WEBHOOK_ERRORS_URL'), content);
+  }
+
+  private async postWebhook(url: string, content: string): Promise<void> {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: this.truncateDiscordContent(content) }),
+      });
+      if (!response.ok) {
+        throw new Error(`Discord webhook returned ${response.status}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Discord notification failed: ${message}`);
+      throw error;
+    }
   }
 
   private async sendWithAttachment(
@@ -217,11 +320,19 @@ export class DiscordNotifier {
     );
     form.append('files[0]', new Blob([audio], { type: 'audio/mpeg' }), filename);
 
-    const response = await fetch(this.config.getOrThrow<string>('DISCORD_WEBHOOK_URL'), {
-      method: 'POST',
-      body: form,
-    });
-    if (!response.ok) throw new Error(`Discord webhook returned ${response.status}`);
+    try {
+      const response = await fetch(this.config.getOrThrow<string>('DISCORD_WEBHOOK_URL'), {
+        method: 'POST',
+        body: form,
+      });
+      if (!response.ok) {
+        throw new Error(`Discord webhook returned ${response.status}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Discord attachment notification failed: ${message}`);
+      throw error;
+    }
   }
 
   private extractError(error: unknown): { message: string; stack?: string } {
