@@ -7,6 +7,10 @@
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:push": "prisma db push",
     "lint": "eslint \"{src,test,scripts}/**/*.ts\"",
     "test": "jest",
     "test:cov": "jest --coverage",
@@ -17,18 +21,25 @@
     "eval:export-trajectories": "ts-node scripts/export-trajectories.ts",
     "eval:experiment": "ts-node scripts/run-experiment.ts",
     "eval:all": "npm run eval:baseline -- --pilot && npm run eval:final -- --pilot && npm run eval:score && npm run eval:report && npm run eval:export-trajectories",
-    "eval:demo": "ts-node scripts/seed-demo-runs.ts && npm run eval:report && npm run eval:export-trajectories"
+    "eval:demo": "ts-node scripts/seed-demo-runs.ts && npm run eval:report && npm run eval:export-trajectories",
+    "check:integrations": "ts-node scripts/check-integrations.ts",
+    "remove:duplicates": "ts-node scripts/remove-duplicate-plans.ts"
   },
   "dependencies": {
+    "@nestjs/bullmq": "^11.0.5",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/schedule": "^6.0.1",
+    "@nestjs/serve-static": "^5.0.5",
     "@notionhq/client": "^2.2.15",
+    "@prisma/client": "^6.19.3",
+    "bullmq": "^5.81.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "openai": "^5.12.2",
+    "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^3.25.76"
@@ -42,6 +53,7 @@
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.3.0",
+    "dotenv": "^16.6.1",
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
@@ -50,7 +62,6 @@
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.41.0",
-    "dotenv": "^16.6.1"
+    "typescript-eslint": "^8.41.0"
   }
 }
