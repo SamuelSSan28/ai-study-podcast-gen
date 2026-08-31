@@ -16,6 +16,8 @@ export interface CadencePreset {
   questionPauseAfter?: readonly [number, number];
 }
 
+export const CONCEPT_TRANSITION_PAUSE = [700, 1000] as const;
+
 export const CADENCE: Record<DeliveryStyle, CadencePreset> = {
   normal: {
     maxSentencesPerChunk: 2,

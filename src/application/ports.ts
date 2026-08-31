@@ -1,4 +1,5 @@
 import {
+  ArticleReview,
   ConversationPlan,
   CreateConversationPlanInput,
   PodcastScript,
@@ -64,7 +65,18 @@ export interface AiGateway {
     candidate: StudyPlanTopic,
     history: StudyPlanTopic[],
   ): Promise<'NEW' | 'RELATED_BUT_DEEPER' | 'DUPLICATE'>;
-  generateContent(topic: StudyPlanTopic, context: string): Promise<StudyContent>;
+  generateContent(topic: StudyPlanTopic, research: TopicResearch): Promise<StudyContent>;
+  reviewArticle(
+    topic: StudyPlanTopic,
+    research: TopicResearch,
+    article: StudyContent,
+  ): Promise<ArticleReview>;
+  reviseArticle(
+    topic: StudyPlanTopic,
+    research: TopicResearch,
+    article: StudyContent,
+    review: ArticleReview,
+  ): Promise<StudyContent>;
   researchTopic(topic: StudyPlanTopic): Promise<TopicResearch>;
   createConversationPlan(
     input: CreateConversationPlanInput,
@@ -76,7 +88,11 @@ export interface AiGateway {
     plan: ConversationPlan,
     mode: PodcastMode,
   ): Promise<RawPodcastScript>;
-  polishDialogue(script: RawPodcastScript, mode: PodcastMode): Promise<PodcastScript>;
+  polishDialogue(
+    script: RawPodcastScript,
+    mode: PodcastMode,
+    context?: { article: StudyContent; plan: ConversationPlan },
+  ): Promise<PodcastScript>;
   generateSpeech(
     text: string,
     voice: string,

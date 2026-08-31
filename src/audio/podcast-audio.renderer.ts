@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PodcastScript, PodcastSpeaker } from '../domain/models';
 import {
   CADENCE,
+  CONCEPT_TRANSITION_PAUSE,
   chunkSpeedMultiplier,
   jitterMs,
   resolveDeliveryStyle,
@@ -44,6 +45,7 @@ export class PodcastAudioRenderer implements AudioDirector {
   buildJobs(script: PodcastScript): TtsJob[] {
     const jobs: TtsJob[] = [];
     let previousSpeaker: PodcastSpeaker | undefined;
+    let previousSectionId: string | undefined;
     let globalSequence = 0;
 
     for (const turn of script.turns) {
@@ -52,7 +54,10 @@ export class PodcastAudioRenderer implements AudioDirector {
       const cadence = CADENCE[style];
       const chunks = segmentIntoChunks(turn.text, cadence.maxSentencesPerChunk);
       const speakerChanged = previousSpeaker !== undefined && previousSpeaker !== turn.speaker;
+      const sectionChanged =
+        previousSectionId !== undefined && previousSectionId !== turn.sectionId;
       previousSpeaker = turn.speaker;
+      previousSectionId = turn.sectionId;
 
       const baseSpeed = this.speedForSpeaker(turn.speaker);
       const voice = this.voiceForSpeaker(turn.speaker);
@@ -66,7 +71,11 @@ export class PodcastAudioRenderer implements AudioDirector {
         if (isFirst) {
           pauseBeforeMs =
             delivery?.pauseBeforeMs ??
-            (speakerChanged ? jitterMs(cadence.speakerChangePause, seed) : 0);
+            (sectionChanged
+              ? jitterMs(CONCEPT_TRANSITION_PAUSE, seed)
+              : speakerChanged
+                ? jitterMs(cadence.speakerChangePause, seed)
+                : 0);
         }
 
         let pauseAfterMs: number;

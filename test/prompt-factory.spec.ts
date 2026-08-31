@@ -49,8 +49,8 @@ describe('resolvePrompt', () => {
   it('resolves the explanation lesson planner with topic-driven delivery', () => {
     const result = resolvePrompt({ stage: 'conversation-plan', mode: 'EXPLANATION', value: input });
     expect(result.version).toContain('explanation');
-    expect(result.prompt).toContain('centralQuestion');
-    expect(result.prompt).toContain('runningScenario');
+    expect(result.prompt).toContain('articleSectionId');
+    expect(result.prompt).toContain('NARRATION TO TEACH');
     expect(result.prompt).toContain('SOURCE ARTICLE');
     expect(result.prompt).toContain('ARTICLE FIDELITY');
     expect(result.prompt).toContain('SPEAKER POLICY');

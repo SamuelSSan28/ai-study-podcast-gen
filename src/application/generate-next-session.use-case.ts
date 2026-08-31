@@ -38,7 +38,7 @@ import { DISCUSSION_PLANNER_PROMPT_VERSION } from '../ai/prompts/discussion/conv
 import { DISCUSSION_SCRIPT_PROMPT_VERSION } from '../ai/prompts/discussion/podcast-script.prompt';
 import { DISCUSSION_POLISHER_PROMPT_VERSION } from '../ai/prompts/discussion/dialogue-polisher.prompt';
 import { EXPLANATION_PLANNER_PROMPT_VERSION } from '../ai/prompts/explanation/lesson-planner.prompt';
-import { EXPLANATION_SCRIPT_PROMPT_VERSION } from '../ai/prompts/explanation/lesson-script.prompt';
+import { EXPLANATION_SECTION_ADAPTER_PROMPT_VERSION } from '../ai/prompts/explanation/section-adapter.prompt';
 import { EXPLANATION_POLISHER_PROMPT_VERSION } from '../ai/prompts/explanation/script-polisher.prompt';
 import { RunTraceService } from '../observability/run-trace.service';
 import { EvalConfig } from '../observability/eval-config';
@@ -278,12 +278,7 @@ export class GenerateNextStudySessionUseCase {
         this.trace?.endStage('research', { sourceCount: session.research.sources.length });
         this.maybeInjectFailure('CONTENT_READY');
         this.trace?.startStage('content');
-        session.content = await this.ai.generateContent(
-          topic,
-          this.evalConfig.skipWebResearch
-            ? `TOPIC_ONLY:${topic.description}`
-            : `CURRENT_WEB_RESEARCH:${JSON.stringify(session.research)}`,
-        );
+        session.content = await this.ai.generateContent(topic, session.research);
         this.trace?.endStage('content');
         topic.articleOutline = enrichArticleOutline(
           { ...topic, articleOutline: topic.articleOutline ?? seedArticleOutline(topic) },
@@ -341,7 +336,10 @@ export class GenerateNextStudySessionUseCase {
         session.stage = 'DIALOGUE_POLISH_PENDING';
         await this.sessions.updateSession(session);
         this.trace?.startStage('dialogue_polish');
-        session.script = await this.polisher.polish(session.rawScript, session.podcastMode);
+        session.script = await this.polisher.polish(session.rawScript, session.podcastMode, {
+          article: session.content,
+          plan: session.conversationPlan,
+        });
         this.trace?.endStage('dialogue_polish');
         this.validateScript(session, targetMinutes);
         this.maybeInjectFailure('DIALOGUE_READY');
@@ -450,7 +448,7 @@ function resolveConversationPlanVersion(mode: PodcastMode): string {
 
 function resolveScriptPromptVersion(mode: PodcastMode): string {
   if (mode === 'INTERVIEW') return INTERVIEW_SCRIPT_PROMPT_VERSION;
-  if (mode === 'EXPLANATION') return EXPLANATION_SCRIPT_PROMPT_VERSION;
+  if (mode === 'EXPLANATION') return EXPLANATION_SECTION_ADAPTER_PROMPT_VERSION;
   return DISCUSSION_SCRIPT_PROMPT_VERSION;
 }
 

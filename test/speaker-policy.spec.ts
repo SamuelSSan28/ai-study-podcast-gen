@@ -26,31 +26,25 @@ const basePlan = {
   deliveryRationale: 'Foundations solo; dialogue at lifting-state decision.',
 };
 
-function soloSection(overrides: Record<string, unknown> = {}) {
+function soloSection(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    id: 'discovery',
-    episodeBeat: 'DISCOVERY',
-    topic: 'What is useState',
-    objective: 'Define useState',
-    concept: 'Persisted render memory',
-    examples: ['isOpen menu'],
-    realWorldCases: ['Toggle UI'],
+    articleSectionId: 'discovery',
+    purpose: 'Teach what useState means',
     speakerMode: 'instructor_solo',
     dialogueReason: null,
-    coHostMoments: [],
-    keyTakeaways: [],
-    faqItems: null,
+    dialoguePrompt: null,
+    recap: false,
     ...overrides,
   };
 }
 
-function fiveSections(middle: Record<string, unknown>) {
+function fiveSections(middle: Record<string, unknown>): Array<Record<string, unknown>> {
   return [
-    soloSection({ id: 'hook', episodeBeat: 'HOOK', topic: 'Hook', concept: '' }),
-    soloSection({ id: 'promise', episodeBeat: 'LEARNING_PROMISE', topic: 'Promise', concept: '' }),
-    soloSection({ id: 'setup', episodeBeat: 'SETUP', topic: 'Setup', concept: '' }),
+    soloSection({ articleSectionId: 'hook' }),
+    soloSection({ articleSectionId: 'promise' }),
+    soloSection({ articleSectionId: 'setup' }),
     soloSection(middle),
-    soloSection({ id: 'recap', episodeBeat: 'RECAP', topic: 'Recap', keyTakeaways: ['Rule'] }),
+    soloSection({ articleSectionId: 'recap', recap: true }),
   ];
 }
 
@@ -75,18 +69,17 @@ describe('explanation speaker policy schema', () => {
     }
   });
 
-  it('rejects coHostMoments on instructor_solo sections', () => {
+  it('rejects dialogueReason on instructor_solo sections', () => {
     const result = explanationConversationPlanSchema.safeParse({
       ...basePlan,
       sections: fiveSections({
         speakerMode: 'instructor_solo',
-        dialogueReason: null,
-        coHostMoments: ['Should not appear'],
+        dialogueReason: 'comparison',
       }),
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.message).toMatch(/coHostMoments/);
+      expect(result.error.message).toMatch(/dialogueReason/);
     }
   });
 
@@ -94,31 +87,23 @@ describe('explanation speaker policy schema', () => {
     const result = explanationConversationPlanSchema.safeParse({
       ...basePlan,
       sections: fiveSections({
-        id: 'lift',
-        episodeBeat: 'GUIDED_PRACTICE',
+        articleSectionId: 'lift',
         speakerMode: 'dialogue',
-        dialogueReason: 'decision_review',
-        coHostMoments: ['Ask if query stays in SearchBox when ProductsList needs it'],
+        dialogueReason: 'decision',
+        dialoguePrompt: 'Should a derived total also be stored?',
       }),
     });
     expect(result.success).toBe(true);
   });
 
-  it('requires instructor_solo on every section for solo_lecture', () => {
+  it('accepts a thin plan without legacy narrative metadata', () => {
     const result = explanationConversationPlanSchema.safeParse({
-      ...basePlan,
-      deliveryApproach: 'solo_lecture',
-      deliveryRationale: 'Pure foundations',
-      sections: fiveSections({
-        speakerMode: 'dialogue',
-        dialogueReason: 'comparison',
-        coHostMoments: ['Compare local vs lifted'],
-      }),
+      mode: 'EXPLANATION',
+      version: '1',
+      title: 'useState',
+      sections: fiveSections({}),
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.message).toMatch(/solo_lecture/);
-    }
+    expect(result.success).toBe(true);
   });
 });
 

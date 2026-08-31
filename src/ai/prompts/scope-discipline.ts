@@ -14,6 +14,11 @@ Do not expand the article just because a related concept exists.
 Every section must directly contribute to the learning objective of this topic.
 If a piece of information does not help teach the current objective, omit it.
 
+Before introducing a related technology, library, pattern, or architectural concern, ask whether
+the learner needs it to understand the current learning objective. If not, omit it. Cover the topic,
+the objectives, and source-supported concepts necessary to teach them — not everything related to
+the topic.
+
 Depth is preferred over breadth.`;
 
 /** Podcast script: transform article content for spoken delivery without expanding scope. */
