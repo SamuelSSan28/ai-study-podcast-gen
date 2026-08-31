@@ -184,6 +184,7 @@
 .topic-detail {
   padding: 0 1rem 1rem 2.75rem;
   border-top: 1px dashed #dee2e6;
+  min-width: 0;
 }
 .topic-detail-header { margin-bottom: 1rem; }
 .topic-position {
@@ -221,8 +222,9 @@
 /* Materials */
 .materials-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
+  min-width: 0;
 }
 .material-card {
   display: flex;
@@ -231,12 +233,29 @@
   border: 1px solid #dee2e6;
   border-radius: 0.5rem;
   background: #fff;
+  min-width: 0;
 }
 .material-card.material-pending {
   opacity: 0.85;
   background: #f8f9fa;
 }
-.material-icon { font-size: 1.25rem; line-height: 1; }
+.material-card-podcast {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.material-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.material-icon { font-size: 1.25rem; line-height: 1; flex-shrink: 0; }
+.material-body {
+  min-width: 0;
+  flex: 1;
+}
 .material-label {
   font-weight: 600;
   font-size: 0.875rem;
@@ -247,10 +266,13 @@
 }
 .material-actions { margin-top: 0.35rem; }
 .inline-audio {
+  display: block;
   width: 100%;
-  max-width: 280px;
-  height: 36px;
-  margin-top: 0.25rem;
+  min-width: 280px;
+  max-width: none;
+  height: 40px;
+  margin-top: 0.75rem;
+  flex-shrink: 0;
 }
 
 .script-panel {
