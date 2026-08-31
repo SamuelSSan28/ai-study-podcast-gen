@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PodcastMode } from '../domain/models';
+import { enqueueUnique } from './queue-dedup';
 
 export const STUDY_PLANS_QUEUE = 'study-plans';
 export const STUDY_SESSIONS_QUEUE = 'study-sessions';
@@ -18,6 +19,12 @@ export type NotionJob =
   | { kind: 'session'; sessionId: string }
   | { kind: 'topic'; topicId: string };
 
+const JOB_RETENTION = { removeOnComplete: 100, removeOnFail: 50 } as const;
+const RETRY_OPTS = {
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 30_000 },
+};
+
 @Injectable()
 export class QueueService {
   constructor(
@@ -28,12 +35,13 @@ export class QueueService {
   ) {}
 
   async enqueuePlanGeneration(planId: string): Promise<string> {
-    const job = await this.plansQueue.add(
+    return enqueueUnique(
+      this.plansQueue,
       'generate-plan',
       { planId } satisfies PlanJob,
-      { jobId: `plan:${planId}`, removeOnComplete: 100, removeOnFail: 50 },
+      `plan-${planId}`,
+      { ...JOB_RETENTION, ...RETRY_OPTS },
     );
-    return job.id ?? planId;
   }
 
   async enqueueGenerateSession(
@@ -42,75 +50,74 @@ export class QueueService {
     topicId?: string,
   ): Promise<string> {
     const jobId = topicId
-      ? `session:${planId}:${topicId}:${mode ?? 'default'}`
-      : `session:${planId}:${mode ?? 'default'}`;
-    const job = await this.sessionsQueue.add(
+      ? `session-${planId}-${topicId}-${mode ?? 'default'}`
+      : `session-${planId}-${mode ?? 'default'}`;
+    return enqueueUnique(
+      this.sessionsQueue,
       'generate-session',
       { planId, mode, topicId } satisfies SessionJob,
-      {
-        jobId,
-        removeOnComplete: 100,
-        removeOnFail: 50,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 30_000 },
-      },
+      jobId,
+      { ...JOB_RETENTION, ...RETRY_OPTS },
     );
-    return job.id ?? jobId;
   }
 
   async enqueueRetrySession(sessionId: string): Promise<string> {
-    const job = await this.sessionsQueue.add(
+    return enqueueUnique(
+      this.sessionsQueue,
       'retry-session',
       { sessionId } satisfies RetryJob,
-      {
-        jobId: `retry:${sessionId}`,
-        removeOnComplete: 100,
-        removeOnFail: 50,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 30_000 },
-      },
+      `retry-${sessionId}`,
+      { ...JOB_RETENTION, ...RETRY_OPTS },
     );
-    return job.id ?? sessionId;
   }
 
   async enqueueAdvancePlan(planId: string): Promise<string> {
-    const job = await this.progressQueue.add(
+    return enqueueUnique(
+      this.progressQueue,
       'advance-plan',
       { planId } satisfies ProgressJob,
-      { jobId: `advance:${planId}`, removeOnComplete: 100, removeOnFail: 50 },
+      `advance-${planId}`,
+      JOB_RETENTION,
     );
-    return job.id ?? planId;
   }
 
   async enqueueNotionPlanPending(planId: string): Promise<void> {
-    await this.notionQueue.add(
+    await enqueueUnique(
+      this.notionQueue,
       'publish-content',
       { kind: 'plan-pending', planId } satisfies NotionJob,
-      { jobId: `notion:plan-pending:${planId}`, removeOnComplete: 200 },
+      `notion-plan-pending-${planId}`,
+      { removeOnComplete: 200 },
     );
   }
 
   async enqueueNotionPlanFinalized(planId: string): Promise<void> {
-    await this.notionQueue.add(
+    await enqueueUnique(
+      this.notionQueue,
       'publish-content',
       { kind: 'plan-finalized', planId } satisfies NotionJob,
-      { jobId: `notion:plan-finalized:${planId}`, removeOnComplete: 200 },
+      `notion-plan-finalized-${planId}`,
+      { removeOnComplete: 200 },
     );
   }
 
   async enqueueNotionSession(sessionId: string): Promise<void> {
-    await this.notionQueue.add(
+    await enqueueUnique(
+      this.notionQueue,
       'publish-content',
       { kind: 'session', sessionId } satisfies NotionJob,
-      { jobId: `notion:session:${sessionId}:${Date.now()}`, removeOnComplete: 200 },
+      `notion-session-${sessionId}`,
+      { removeOnComplete: 200 },
     );
   }
 
   async enqueueNotionTopic(topicId: string): Promise<void> {
-    await this.notionQueue.add(
+    await enqueueUnique(
+      this.notionQueue,
       'publish-content',
       { kind: 'topic', topicId } satisfies NotionJob,
-      { jobId: `notion:topic:${topicId}`, removeOnComplete: 200 },
+      `notion-topic-${topicId}`,
+      { removeOnComplete: 200 },
     );
   }
 }

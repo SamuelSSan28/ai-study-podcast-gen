@@ -16,6 +16,7 @@ import {
 import type { Response } from 'express';
 import { CreateStudyPlanUseCase } from '../application/create-study-plan.use-case';
 import { GetStudyPlanStatusUseCase } from '../application/get-study-plan-status.use-case';
+import { RetryStudyPlanUseCase } from '../application/retry-study-plan.use-case';
 import { ArchiveStudyPlanUseCase } from '../application/archive-study-plan.use-case';
 import { MarkTopicStudiedUseCase } from '../application/mark-topic-studied.use-case';
 import {
@@ -46,6 +47,7 @@ export class StudyPlansController {
   constructor(
     private readonly createPlan: CreateStudyPlanUseCase,
     private readonly getStatus: GetStudyPlanStatusUseCase,
+    private readonly retryPlan: RetryStudyPlanUseCase,
     private readonly archivePlan: ArchiveStudyPlanUseCase,
     private readonly markStudied: MarkTopicStudiedUseCase,
     private readonly queue: QueueService,
@@ -104,6 +106,12 @@ export class StudyPlansController {
   @Get(':id')
   findOne(@Param('id') id: string): Promise<StudyPlan | null> {
     return this.plans.findById(id);
+  }
+
+  @Post(':id/retry')
+  @HttpCode(202)
+  async retry(@Param('id') id: string): Promise<AsyncJobResponse> {
+    return this.retryPlan.execute(id);
   }
 
   @Post(':id/generate-next')

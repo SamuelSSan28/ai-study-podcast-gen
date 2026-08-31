@@ -19,6 +19,7 @@ export interface ProcessingFailureContext {
   plan?: StudyPlan;
   planId?: string;
   operation: string;
+  phase?: 'CREATING' | 'GENERATING';
   error: unknown;
 }
 
@@ -62,7 +63,7 @@ export class DiscordNotifier {
   private buildFailureMessage(context: SessionFailureContext): string {
     const { session, topic, plan, error } = context;
     const { message, stack } = this.extractError(error);
-    const port = this.config.get<number>('PORT', 3000);
+    const baseUrl = this.publicBaseUrl();
     const failedTts = session.audioSegments?.filter((segment) => segment.status === 'FAILED') ?? [];
 
     const lines = [
@@ -72,7 +73,6 @@ export class DiscordNotifier {
       `Week ${String(topic.week).padStart(2, '0')} · Session ${String(topic.sequence).padStart(2, '0')} · ${session.podcastMode}`,
       '',
       `**Plan:** ${plan.title}`,
-      `**Plan ID:** \`${plan.id}\``,
       `**Failed at:** ${session.failedStage ?? session.stage}`,
       `**Last OK stage:** ${session.lastSuccessfulStage}`,
       `**Retry count:** ${session.retryCount}`,
@@ -98,16 +98,12 @@ export class DiscordNotifier {
       if (failedTts.length > 5) lines.push(`…and ${failedTts.length - 5} more`);
     }
 
+    if (session.notionUrl) lines.push('', `📖 Notion: ${session.notionUrl}`);
     lines.push(
       '',
-      '**IDs**',
-      `Session: \`${session.id}\``,
-      `Topic: \`${topic.id}\``,
-      `Generation key: \`${session.generationKey}\``,
+      `📊 Dashboard: ${this.dashboardUrl(plan.id, session.id)}`,
+      `🔁 Retry: POST ${baseUrl}/sessions/${session.id}/retry?token=<token>`,
     );
-
-    if (session.notionUrl) lines.push(`📖 Notion: ${session.notionUrl}`);
-    lines.push(`🔁 Retry: POST http://localhost:${port}/sessions/${session.id}/retry?token=<token>`);
     if (topic.tags.length) lines.push('', `**Tags:** ${topic.tags.join(' · ')}`);
     if (topic.summary) lines.push('', `**Summary:** ${topic.summary}`);
 
@@ -116,19 +112,45 @@ export class DiscordNotifier {
 
   private buildProcessingErrorMessage(context: ProcessingFailureContext): string {
     const { message, stack } = this.extractError(context.error);
-    const lines = [
-      '🚨 **Processing Error**',
-      '',
-      `**Operation:** ${context.operation}`,
-    ];
+    const baseUrl = this.publicBaseUrl();
+    const planId = context.plan?.id ?? context.planId;
+    const phaseLabel =
+      context.phase === 'CREATING'
+        ? 'Generating curriculum'
+        : context.phase === 'GENERATING'
+          ? 'Generating first episode'
+          : undefined;
+
+    const lines = ['🚨 **Plan Provisioning Failed**', ''];
     if (context.plan) {
-      lines.push(`**Plan:** ${context.plan.title}`, `**Plan ID:** \`${context.plan.id}\``);
-    } else if (context.planId) {
-      lines.push(`**Plan ID:** \`${context.planId}\``);
+      lines.push(`**Plan:** ${context.plan.title}`);
     }
-    lines.push('', '**Error**', '```', message, '```');
+    if (planId) {
+      lines.push(`📊 Dashboard: ${this.dashboardUrl(planId)}`);
+    }
+    if (phaseLabel) {
+      lines.push(`**Phase:** ${phaseLabel}`);
+    }
+    lines.push(`**Operation:** ${context.operation}`, '', '**Error**', '```', message, '```');
     if (stack) lines.push('', '**Stack (tail)**', '```', stack, '```');
+    if (planId) {
+      lines.push('', `🔁 Retry: POST ${baseUrl}/study-plans/${planId}/retry?token=<token>`);
+    }
     return this.truncateDiscordContent(lines.join('\n'));
+  }
+
+  private publicBaseUrl(): string {
+    return (
+      this.config.get<string>('DASHBOARD_PUBLIC_BASE_URL')?.replace(/\/$/, '') ??
+      `http://localhost:${this.config.get<number>('PORT', 3000)}`
+    );
+  }
+
+  private dashboardUrl(planId: string, sessionId?: string): string {
+    const url = new URL('/', `${this.publicBaseUrl()}/`);
+    url.searchParams.set('plan', planId);
+    if (sessionId) url.searchParams.set('session', sessionId);
+    return url.toString();
   }
 
   private buildMessage(

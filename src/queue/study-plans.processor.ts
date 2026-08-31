@@ -8,6 +8,8 @@ import { PLAN_REPOSITORY, StudyPlanRepository } from '../application/ports';
 import { DiscordNotifier } from '../notifications/discord.notifier';
 import { PlanJob, STUDY_PLANS_QUEUE } from './queue.service';
 import { QueueService } from './queue.service';
+import { isFinalJobAttempt } from './queue-dedup';
+import { StudyPlanProvisioningStatus } from '../domain/models';
 
 @Processor(STUDY_PLANS_QUEUE)
 export class StudyPlansProcessor extends WorkerHost {
@@ -25,8 +27,10 @@ export class StudyPlansProcessor extends WorkerHost {
 
   async process(job: Job<PlanJob>): Promise<void> {
     const { planId } = job.data;
+    let phase: StudyPlanProvisioningStatus = 'CREATING';
     try {
       await this.generatePlan.execute(planId);
+      phase = 'GENERATING';
       await this.queue.enqueueNotionPlanFinalized(planId);
       const session = await this.generateNext.execute(planId);
       await this.queue.enqueueNotionSession(session.id);
@@ -38,18 +42,22 @@ export class StudyPlansProcessor extends WorkerHost {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Plan generation failed for ${planId}: ${message}`);
+      this.logger.error(`Plan generation failed for ${planId} (${phase}): ${message}`);
       const plan = await this.plans.findById(planId);
       if (plan) {
         plan.provisioningStatus = 'FAILED';
         plan.provisioningError = message;
         await this.plans.updatePlan(plan);
       }
-      await this.notifier.notifyProcessingError({
-        planId,
-        operation: 'PLAN_GENERATION',
-        error,
-      });
+      if (isFinalJobAttempt(job)) {
+        await this.notifier.notifyProcessingError({
+          plan: plan ?? undefined,
+          planId,
+          operation: 'PLAN_GENERATION',
+          phase,
+          error,
+        });
+      }
       throw error;
     }
   }

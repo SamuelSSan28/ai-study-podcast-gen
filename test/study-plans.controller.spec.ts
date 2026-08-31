@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreateStudyPlanUseCase } from '../src/application/create-study-plan.use-case';
 import { GetStudyPlanStatusUseCase } from '../src/application/get-study-plan-status.use-case';
+import { RetryStudyPlanUseCase } from '../src/application/retry-study-plan.use-case';
 import { ArchiveStudyPlanUseCase } from '../src/application/archive-study-plan.use-case';
 import { MarkTopicStudiedUseCase } from '../src/application/mark-topic-studied.use-case';
 import { PLAN_REPOSITORY, SESSION_REPOSITORY, TOPIC_REPOSITORY } from '../src/application/ports';
@@ -23,6 +24,7 @@ describe('StudyPlansController', () => {
       providers: [
         { provide: CreateStudyPlanUseCase, useValue: createPlan },
         { provide: GetStudyPlanStatusUseCase, useValue: getStatus },
+        { provide: RetryStudyPlanUseCase, useValue: { execute: jest.fn() } },
         { provide: ArchiveStudyPlanUseCase, useValue: { execute: jest.fn() } },
         { provide: MarkTopicStudiedUseCase, useValue: { execute: jest.fn() } },
         {

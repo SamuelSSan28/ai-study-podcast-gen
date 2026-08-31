@@ -50,6 +50,7 @@ export const envSchema = z
     FFMPEG_PATH: z.string().default('ffmpeg'),
     AUDIO_STORAGE_PATH: z.string().default('./storage/podcasts'),
     AUDIO_PUBLIC_BASE_URL: z.string().url(),
+    DASHBOARD_PUBLIC_BASE_URL: z.string().url().optional(),
     AUDIO_STORAGE_BACKEND: z.enum(['local', 'google_drive']).default('local'),
     GOOGLE_DRIVE_CLIENT_ID: z.string().optional(),
     GOOGLE_DRIVE_CLIENT_SECRET: z.string().optional(),

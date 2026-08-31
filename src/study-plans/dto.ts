@@ -22,6 +22,7 @@ export type CreateStudyPlanResponse = {
 
 export type StudyPlanStatusResponse = {
   status: StudyPlanProvisioningStatus;
+  provisioningError?: string | null;
 };
 
 export type AsyncJobResponse = {

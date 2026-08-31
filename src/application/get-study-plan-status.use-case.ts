@@ -6,9 +6,15 @@ import { StudyPlanProvisioningStatus } from '../domain/models';
 export class GetStudyPlanStatusUseCase {
   constructor(@Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository) {}
 
-  async execute(planId: string): Promise<{ status: StudyPlanProvisioningStatus }> {
+  async execute(planId: string): Promise<{
+    status: StudyPlanProvisioningStatus;
+    provisioningError?: string | null;
+  }> {
     const plan = await this.plans.findById(planId);
     if (!plan) throw new NotFoundException(`Study plan ${planId} not found`);
-    return { status: plan.provisioningStatus };
+    return {
+      status: plan.provisioningStatus,
+      provisioningError: plan.provisioningError ?? null,
+    };
   }
 }
