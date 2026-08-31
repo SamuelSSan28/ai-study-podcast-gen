@@ -5,6 +5,7 @@ import {
   AudioStorage,
 } from '../application/ports';
 import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { goalsMatch } from '../domain/idempotency';
 
 export class EvalAudioStorage implements AudioStorage {
   upload(input: { filePath: string; filename: string; folderPath: string[] }): Promise<{
@@ -27,10 +28,39 @@ export class InMemoryStudyRepository
   private topics = new Map<string, StudyPlanTopic>();
   private sessions = new Map<string, StudySession>();
 
-  create(plan: StudyPlan, planTopics: StudyPlanTopic[]): Promise<StudyPlan> {
+  createPending(plan: StudyPlan): Promise<StudyPlan> {
+    this.plans.set(plan.id, plan);
+    return Promise.resolve(plan);
+  }
+
+  finalizePlan(plan: StudyPlan, planTopics: StudyPlanTopic[]): Promise<StudyPlan> {
     this.plans.set(plan.id, plan);
     for (const topic of planTopics) this.topics.set(topic.id, { ...topic });
     return Promise.resolve(plan);
+  }
+
+  findByIdempotencyKey(key: string): Promise<StudyPlan | null> {
+    return Promise.resolve(
+      [...this.plans.values()].find((plan) => plan.idempotencyKey === key) ?? null,
+    );
+  }
+
+  findActiveByGoal(goal: string): Promise<StudyPlan | null> {
+    return Promise.resolve(
+      [...this.plans.values()].find(
+        (plan) => plan.status === 'ACTIVE' && goalsMatch(plan.goal, goal),
+      ) ?? null,
+    );
+  }
+
+  findInFlightByGoal(goal: string): Promise<StudyPlan | null> {
+    return Promise.resolve(
+      [...this.plans.values()].find(
+        (plan) =>
+          goalsMatch(plan.goal, goal) &&
+          (plan.provisioningStatus === 'CREATING' || plan.provisioningStatus === 'GENERATING'),
+      ) ?? null,
+    );
   }
 
   findAll(): Promise<StudyPlan[]> {
@@ -48,6 +78,25 @@ export class InMemoryStudyRepository
   updatePlan(plan: StudyPlan): Promise<void> {
     this.plans.set(plan.id, plan);
     return Promise.resolve();
+  }
+
+  archivePlan(id: string): Promise<void> {
+    for (const topic of [...this.topics.values()].filter((t) => t.studyPlanId === id)) {
+      this.topics.delete(topic.id);
+    }
+    for (const session of [...this.sessions.values()].filter((s) => s.studyPlanId === id)) {
+      this.sessions.delete(session.id);
+    }
+    this.plans.delete(id);
+    return Promise.resolve();
+  }
+
+  findTopicsByPlan(planId: string): Promise<StudyPlanTopic[]> {
+    return Promise.resolve(
+      [...this.topics.values()]
+        .filter((topic) => topic.studyPlanId === planId)
+        .sort((a, b) => a.week - b.week || a.sequence - b.sequence),
+    );
   }
 
   findTopicById(id: string): Promise<StudyPlanTopic | null> {

@@ -1,10 +1,29 @@
 {
   "mode": "final",
-  "runCount": 0,
-  "successRate": 0,
-  "avgRubricScore": 0,
-  "avgWallClockMs": 0,
-  "avgCostUsd": 0,
+  "runCount": 3,
+  "successRate": 1,
+  "avgRubricScore": 1,
+  "avgWallClockMs": 480000,
+  "avgCostUsd": 0.024,
   "avgHumanSteps": 0,
-  "runs": []
+  "runs": [
+    {
+      "runId": "944118f9-7d0f-4236-8ced-0476781df169",
+      "caseId": "case-next-topic-kafka-foundations",
+      "rubricScore": 1,
+      "success": true
+    },
+    {
+      "runId": "9e7ca5a6-77c1-4674-a25a-12906d967ba9",
+      "caseId": "case-next-topic-consumer-groups",
+      "rubricScore": 1,
+      "success": true
+    },
+    {
+      "runId": "c804c8ee-08f7-462a-9cde-851a51c84dd5",
+      "caseId": "case-next-topic-kafka-recovery",
+      "rubricScore": 1,
+      "success": true
+    }
+  ]
 }

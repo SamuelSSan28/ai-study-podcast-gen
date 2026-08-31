@@ -21,6 +21,8 @@ export function seedEvalCase(repo: InMemoryStudyRepository, evalCase: EvalCase):
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 42 * 86400000).toISOString().slice(0, 10),
     status: 'ACTIVE',
+    provisioningStatus: 'READY',
+    idempotencyKey: `eval-${planId}`,
     overview: evalCase.topic.summary,
     createdAt: new Date().toISOString(),
     targetSessionMinutes: 45,
