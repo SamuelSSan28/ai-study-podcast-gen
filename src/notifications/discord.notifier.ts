@@ -4,6 +4,8 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { LocalAudioService } from '../audio/local-audio.service';
 import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { AppUrlBuilder } from '../events/app-url.builder';
+import { StudyPlanEvent } from '../events/study-plan-event.types';
 
 const DEFAULT_DISCORD_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const DISCORD_CONTENT_LIMIT = 2000;
@@ -30,7 +32,48 @@ export class DiscordNotifier {
   constructor(
     private readonly config: ConfigService,
     private readonly localAudio: LocalAudioService,
+    private readonly urls: AppUrlBuilder,
   ) {}
+
+  async notifyEvent(event: StudyPlanEvent): Promise<void> {
+    const normal = ['PLAN_CREATED', 'PLAN_READY', 'TOPIC_READY', 'SESSION_READY'];
+    const operational = ['RETRY_SCHEDULED', 'SESSION_SKIPPED', 'GENERATION_FAILED'];
+    if (!normal.includes(event.type) && !operational.includes(event.type)) return;
+
+    const title = this.displayValue(event.metadata?.planTitle, 'Study plan');
+    const topic = event.metadata?.topicTitle
+      ? this.displayValue(event.metadata.topicTitle)
+      : undefined;
+    const destination = event.topicId
+      ? this.urls.topic(event.planId, event.topicId)
+      : event.sessionId
+        ? this.urls.session(event.planId, event.sessionId)
+        : this.urls.plan(event.planId);
+    const heading: Record<string, string> = {
+      PLAN_CREATED: '📚 **Study plan created**',
+      PLAN_READY: '🎉 **Study plan ready**',
+      TOPIC_READY: '📖 **New topic ready**',
+      SESSION_READY: '📖 **New lesson ready**',
+      RETRY_SCHEDULED: '🔁 **Generation retry**',
+      SESSION_SKIPPED: '⏭️ **Session generation skipped**',
+      GENERATION_FAILED: '❌ **Generation failed**',
+    };
+    const lines = [heading[event.type], '', `**${topic ?? title}**`];
+    if (topic) lines.push(`Plan: ${title}`);
+    if (event.stage) lines.push(`Stage: ${event.stage}`);
+    if (event.type === 'PLAN_CREATED') lines.push('Status: Preparing curriculum');
+    if (event.type === 'PLAN_READY') lines.push('Curriculum created. Your first lesson is ready to consume.');
+    if (event.result) {
+      for (const [key, value] of Object.entries(event.result)) {
+        lines.push(`${key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}: ${String(value)}`);
+      }
+    }
+    if (event.error?.message) lines.push('', `Reason: ${event.error.message}`);
+    lines.push('', `📊 Open ${event.topicId || event.sessionId ? 'lesson' : 'plan'}: ${destination}`);
+    const message = lines.join('\n');
+    if (operational.includes(event.type)) await this.sendError(message);
+    else await this.sendSuccess(message);
+  }
 
   async notify(session: StudySession, topic: StudyPlanTopic): Promise<void> {
     const maxBytes = this.config.get<number>(
@@ -250,10 +293,7 @@ export class DiscordNotifier {
   }
 
   private dashboardUrl(planId: string, sessionId?: string): string {
-    const url = new URL('/', `${this.publicBaseUrl()}/`);
-    url.searchParams.set('plan', planId);
-    if (sessionId) url.searchParams.set('session', sessionId);
-    return url.toString();
+    return sessionId ? this.urls.session(planId, sessionId) : this.urls.plan(planId);
   }
 
   private buildMessage(
@@ -372,5 +412,13 @@ export class DiscordNotifier {
 
   private formatMegabytes(bytes: number): string {
     return (bytes / (1024 * 1024)).toFixed(1);
+  }
+
+  private displayValue(value: unknown, fallback = ''): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value);
+    }
+    return fallback;
   }
 }

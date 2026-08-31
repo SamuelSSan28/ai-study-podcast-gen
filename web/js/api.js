@@ -34,6 +34,7 @@ const API = {
   getPlanStatus: (id) => API.request(`/study-plans/${id}/status`),
   listTopics: (id) => API.request(`/study-plans/${id}/topics`),
   listSessions: (id) => API.request(`/study-plans/${id}/sessions`),
+  listEvents: (id) => API.request(`/study-plans/${id}/events`),
   createPlan: (body) =>
     API.request('/study-plans', { method: 'POST', body: JSON.stringify(body) }),
   generateNext: (id, mode) => {

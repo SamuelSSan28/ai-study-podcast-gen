@@ -615,11 +615,12 @@ function bindTopicInteractions(el, planId) {
 }
 
 async function renderPlanDetail(planId) {
-  const [topics, sessions, plan, statusRes] = await Promise.all([
+  const [topics, sessions, plan, statusRes, events] = await Promise.all([
     API.listTopics(planId),
     API.listSessions(planId),
     API.getPlan(planId),
     API.getPlanStatus(planId),
+    API.listEvents(planId),
   ]);
   const el = document.getElementById('plan-detail');
   const provisioning = statusRes?.status ?? plan?.provisioningStatus;
@@ -723,7 +724,8 @@ async function renderPlanDetail(planId) {
           })
           .join('')}
       </div>
-    </section>`;
+    </section>
+    ${renderActivity(events)}`;
 
   bindTopicInteractions(el, planId);
 
@@ -733,6 +735,28 @@ async function renderPlanDetail(planId) {
     startPolling();
     await renderPlanDetail(planId);
   });
+}
+
+function renderActivity(events) {
+  const labels = {
+    PLAN_CREATED: 'Plano criado', PLAN_READY: 'Plano pronto',
+    CURRICULUM_GENERATION_STARTED: 'Geração do currículo',
+    CURRICULUM_GENERATED: 'Currículo gerado',
+    SESSION_GENERATION_STARTED: 'Geração da aula', SESSION_READY: 'Aula pronta',
+    TOPIC_READY: 'Tópico pronto', SESSION_SKIPPED: 'Geração da aula ignorada',
+    RETRY_SCHEDULED: 'Nova tentativa agendada', GENERATION_FAILED: 'Falha na geração',
+  };
+  const rows = events.map((event) => {
+    const details = { ...(event.result ?? {}), ...(event.error ? { erro: event.error.message } : {}) };
+    return `<details class="activity-event activity-${escapeHtml(event.status.toLowerCase())}">
+      <summary><span class="activity-dot"></span><span><strong>${escapeHtml(labels[event.type] ?? event.type)}</strong><small>${new Date(event.createdAt).toLocaleString('pt-BR')} · ${escapeHtml(event.status)}</small></span></summary>
+      <div class="activity-details">
+        ${event.stage ? `<div><b>Etapa</b><span>${escapeHtml(event.stage)}</span></div>` : ''}
+        ${Object.entries(details).map(([key, value]) => `<div><b>${escapeHtml(key)}</b><span>${escapeHtml(String(value))}</span></div>`).join('')}
+        ${event.topicId ? `<a href="/study-plans/${encodeURIComponent(event.planId)}/topics/${encodeURIComponent(event.topicId)}">Abrir tópico →</a>` : ''}
+      </div></details>`;
+  }).join('');
+  return `<section class="activity-section"><h6 class="section-label">Atividade</h6>${rows || '<p class="text-muted">Nenhuma atividade registrada.</p>'}</section>`;
 }
 
 async function openPlan(planId) {
@@ -850,9 +874,13 @@ if (API.getToken()) {
   testConnection().then((ok) => ok && loadPlans());
 }
 
-const urlPlan = new URLSearchParams(window.location.search).get('plan');
+const pathMatch = window.location.pathname.match(/^\/study-plans\/([^/]+)(?:\/(topics|sessions)\/([^/]+))?$/);
+const urlPlan = pathMatch?.[1] ?? new URLSearchParams(window.location.search).get('plan');
 if (urlPlan && API.getToken()) {
   testConnection().then((ok) => {
-    if (ok) openPlan(urlPlan);
+    if (ok) {
+      if (pathMatch?.[2] === 'topics') expandedTopicId = pathMatch[3];
+      openPlan(urlPlan);
+    }
   });
 }

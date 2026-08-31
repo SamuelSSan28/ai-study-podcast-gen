@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DiscordNotifier } from '../src/notifications/discord.notifier';
+import { AppUrlBuilder } from '../src/events/app-url.builder';
 import { LocalAudioService } from '../src/audio/local-audio.service';
 import { StudyPlanTopic, StudySession, StudyPlan } from '../src/domain/models';
 
@@ -73,7 +74,7 @@ describe('DiscordNotifier', () => {
             ? 'http://localhost:3000/audio'
             : '',
     } as never);
-    return new DiscordNotifier(config as never, localAudio);
+    return new DiscordNotifier(config as never, localAudio, new AppUrlBuilder(config as never));
   }
 
   it('attaches audio when the file is within the Discord limit', async () => {

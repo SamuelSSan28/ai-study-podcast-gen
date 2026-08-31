@@ -6,6 +6,7 @@ import { buildIdempotencyKey } from '../domain/idempotency';
 import { STUDY_DEFAULTS, StudyPlanSettings } from '../config/study-defaults';
 import { QueueService } from '../queue/queue.service';
 import { DiscordNotifier } from '../notifications/discord.notifier';
+import { StudyPlanEventService } from '../events/study-plan-event.service';
 
 export type CreateStudyPlanResult =
   | { kind: 'created'; plan: StudyPlan }
@@ -17,6 +18,7 @@ export class CreateStudyPlanUseCase {
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     private readonly queue: QueueService,
     private readonly notifier: DiscordNotifier,
+    private readonly events: StudyPlanEventService,
   ) {}
 
   async execute(input: {
@@ -84,11 +86,12 @@ export class CreateStudyPlanUseCase {
     };
 
     const pending = await this.plans.createPending(plan);
-    try {
-      await this.notifier.notifyPlanStarted(pending);
-    } catch {
-      /* Discord must not block creation */
-    }
+    await this.events.publish({
+      planId: pending.id,
+      type: 'PLAN_CREATED',
+      status: 'SUCCESS',
+      metadata: { planTitle: pending.title },
+    });
     await this.queue.enqueueNotionPlanPending(pending.id);
     await this.queue.enqueuePlanGeneration(pending.id);
     return { kind: 'created', plan: pending };

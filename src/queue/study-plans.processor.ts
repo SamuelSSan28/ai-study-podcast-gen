@@ -11,11 +11,11 @@ import {
   StudySessionRepository,
   StudyTopicRepository,
 } from '../application/ports';
-import { DiscordNotifier } from '../notifications/discord.notifier';
 import { NotionContentPublisher } from '../persistence/notion-content.publisher';
 import { PlanJob, STUDY_PLANS_QUEUE } from './queue.service';
 import { QueueService } from './queue.service';
 import { StudyPlanProvisioningStatus, StudySession } from '../domain/models';
+import { StudyPlanEventService } from '../events/study-plan-event.service';
 
 @Processor(STUDY_PLANS_QUEUE)
 export class StudyPlansProcessor extends WorkerHost {
@@ -28,8 +28,8 @@ export class StudyPlansProcessor extends WorkerHost {
     @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
     private readonly queue: QueueService,
-    private readonly notifier: DiscordNotifier,
     private readonly notion: NotionContentPublisher,
+    private readonly events: StudyPlanEventService,
   ) {
     super();
   }
@@ -38,13 +38,10 @@ export class StudyPlansProcessor extends WorkerHost {
     const { planId } = job.data;
     let phase: StudyPlanProvisioningStatus = 'CREATING';
     let plan = await this.plans.findById(planId);
-    if (plan) {
-      try {
-        await this.notifier.notifyPlanProvisioning(plan, 'CREATING');
-      } catch {
-        /* Discord must not block provisioning */
-      }
-    }
+    if (plan) await this.events.publish({
+      planId, type: 'CURRICULUM_GENERATION_STARTED', status: 'RUNNING',
+      stage: 'curriculum_generation', metadata: { planTitle: plan.title },
+    });
 
     try {
       const topicsBefore = await this.topics.findTopicsByPlan(planId);
@@ -58,20 +55,19 @@ export class StudyPlansProcessor extends WorkerHost {
         plan.provisioningStatus = 'GENERATING';
         plan.provisioningError = undefined;
         await this.plans.updatePlan(plan);
-        try {
-          await this.notifier.notifyPlanProvisioning(plan, 'GENERATING');
-        } catch {
-          /* Discord must not block provisioning */
-        }
+        await this.events.publish({
+          planId, type: 'SESSION_GENERATION_STARTED', status: 'RUNNING',
+          stage: 'session_generation', metadata: { planTitle: plan.title },
+        });
       }
 
       const topics = await this.topics.findTopicsByPlan(planId);
       if (!hadCurriculum && topics.length > 0 && plan) {
-        try {
-          await this.notifier.notifyPlanCurriculumReady(plan, topics.length);
-        } catch {
-          /* Discord must not block provisioning */
-        }
+        await this.events.publish({
+          planId, type: 'CURRICULUM_GENERATED', status: 'SUCCESS',
+          stage: 'curriculum_generation', result: { topicsCreated: topics.length },
+          metadata: { planTitle: plan.title },
+        });
       }
 
       const needsNotionSync =
@@ -101,11 +97,11 @@ export class StudyPlansProcessor extends WorkerHost {
         plan.provisioningStatus = 'READY';
         plan.provisioningError = undefined;
         await this.plans.updatePlan(plan);
-        try {
-          await this.notifier.notifyPlanReady(plan);
-        } catch {
-          /* Discord must not block provisioning */
-        }
+        await this.events.publish({
+          planId, type: 'PLAN_READY', status: 'SUCCESS', sessionId: session.id,
+          result: { curriculumCreated: true, firstLessonReady: true },
+          metadata: { planTitle: plan.title },
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -116,17 +112,10 @@ export class StudyPlansProcessor extends WorkerHost {
         plan.provisioningError = message;
         await this.plans.updatePlan(plan);
       }
-      try {
-        await this.notifier.notifyProcessingError({
-          plan: plan ?? undefined,
-          planId,
-          operation: 'PLAN_GENERATION',
-          phase,
-          error,
-        });
-      } catch {
-        /* already logged in notifier */
-      }
+      if (plan) await this.events.publish({
+        planId, type: 'GENERATION_FAILED', status: 'FAILED', severity: 'ERROR',
+        stage: phase, error, metadata: { planTitle: plan.title },
+      });
       throw error;
     }
   }

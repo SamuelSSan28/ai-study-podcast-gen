@@ -44,6 +44,8 @@ import { StudyPlansProcessor } from './queue/study-plans.processor';
 import { StudySessionsProcessor } from './queue/study-sessions.processor';
 import { StudyProgressProcessor } from './queue/study-progress.processor';
 import { NotionProcessor } from './queue/notion.processor';
+import { AppUrlBuilder } from './events/app-url.builder';
+import { StudyPlanEventService } from './events/study-plan-event.service';
 
 @Module({
   imports: [
@@ -98,6 +100,8 @@ import { NotionProcessor } from './queue/notion.processor';
     GenerateNextStudySessionUseCase,
     ProgressStudyPlanUseCase,
     DiscordNotifier,
+    AppUrlBuilder,
+    StudyPlanEventService,
     PodcastScheduler,
     LocalProgressCron,
     RunTraceService,
