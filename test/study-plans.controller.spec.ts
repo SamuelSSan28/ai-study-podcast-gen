@@ -8,6 +8,7 @@ import { PLAN_REPOSITORY, SESSION_REPOSITORY, TOPIC_REPOSITORY } from '../src/ap
 import { QueueService } from '../src/queue/queue.service';
 import { StudyPlansController } from '../src/study-plans/study-plans.controller';
 import type { Response } from 'express';
+import { StudyPlanEventService } from '../src/events/study-plan-event.service';
 
 describe('StudyPlansController', () => {
   let controller: StudyPlansController;
@@ -27,6 +28,7 @@ describe('StudyPlansController', () => {
         { provide: RetryStudyPlanUseCase, useValue: { execute: jest.fn() } },
         { provide: ArchiveStudyPlanUseCase, useValue: { execute: jest.fn() } },
         { provide: MarkTopicStudiedUseCase, useValue: { execute: jest.fn() } },
+        { provide: StudyPlanEventService, useValue: { findByPlan: jest.fn() } },
         {
           provide: QueueService,
           useValue: {

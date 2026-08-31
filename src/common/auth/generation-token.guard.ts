@@ -7,6 +7,9 @@ export class GenerationTokenGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
+    if (request.method === 'GET' && request.accepts('html') && !request.path.endsWith('/events')) {
+      return true;
+    }
     const supplied = typeof request.query.token === 'string' ? request.query.token : '';
     const expected = this.config.getOrThrow<string>('STUDY_PLAN_CREATE_TOKEN');
     const a = Buffer.from(supplied);

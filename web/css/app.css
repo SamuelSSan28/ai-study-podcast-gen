@@ -326,3 +326,15 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+.activity-section { margin-top: 2rem; }
+.activity-event { border-left: 2px solid #dee2e6; padding: 0 0 1rem 1rem; margin-left: .4rem; }
+.activity-event summary { display: flex; cursor: pointer; list-style: none; position: relative; }
+.activity-event summary::-webkit-details-marker { display: none; }
+.activity-dot { position: absolute; width: .75rem; height: .75rem; border-radius: 50%; background: #6c757d; left: -1.43rem; top: .3rem; }
+.activity-success .activity-dot { background: #198754; }
+.activity-warning .activity-dot, .activity-skipped .activity-dot { background: #ffc107; }
+.activity-failed .activity-dot { background: #dc3545; }
+.activity-event small { display: block; color: #6c757d; font-size: .75rem; margin-top: .15rem; }
+.activity-details { margin-top: .65rem; padding: .75rem; background: #f8f9fa; border-radius: .5rem; font-size: .85rem; }
+.activity-details div { display: grid; grid-template-columns: minmax(8rem, 25%) 1fr; gap: .75rem; margin-bottom: .35rem; }

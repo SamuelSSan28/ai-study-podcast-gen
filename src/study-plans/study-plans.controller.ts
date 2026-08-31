@@ -11,9 +11,12 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import type { Request } from 'express';
+import { join } from 'node:path';
 import { CreateStudyPlanUseCase } from '../application/create-study-plan.use-case';
 import { GetStudyPlanStatusUseCase } from '../application/get-study-plan-status.use-case';
 import { RetryStudyPlanUseCase } from '../application/retry-study-plan.use-case';
@@ -36,6 +39,8 @@ import {
 } from './dto';
 import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
 import { QueueService } from '../queue/queue.service';
+import { StudyPlanEventService } from '../events/study-plan-event.service';
+import { StudyPlanEvent } from '../events/study-plan-event.types';
 
 enum PodcastModeParam {
   INTERVIEW = 'INTERVIEW',
@@ -52,6 +57,7 @@ export class StudyPlansController {
     private readonly archivePlan: ArchiveStudyPlanUseCase,
     private readonly markStudied: MarkTopicStudiedUseCase,
     private readonly queue: QueueService,
+    private readonly events: StudyPlanEventService,
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
     @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: StudySessionRepository,
@@ -104,9 +110,25 @@ export class StudyPlansController {
     return this.sessions.findByPlan(id);
   }
 
+  @Get(':id/events')
+  findEvents(@Param('id') id: string): Promise<StudyPlanEvent[]> {
+    return this.events.findByPlan(id);
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<StudyPlan | null> {
+  findOne(@Param('id') id: string, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<StudyPlan | null> | void {
+    if (req.accepts('html')) return void res.sendFile(join(process.cwd(), 'web', 'index.html'));
     return this.plans.findById(id);
+  }
+
+  @Get(':id/topics/:topicId')
+  topicPage(@Res() res: Response): void {
+    res.sendFile(join(process.cwd(), 'web', 'index.html'));
+  }
+
+  @Get(':id/sessions/:sessionId')
+  sessionPage(@Res() res: Response): void {
+    res.sendFile(join(process.cwd(), 'web', 'index.html'));
   }
 
   @Post(':id/retry')

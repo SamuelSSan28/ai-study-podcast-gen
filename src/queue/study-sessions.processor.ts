@@ -4,8 +4,8 @@ import { Job } from 'bullmq';
 import { GenerateNextStudySessionUseCase } from '../application/generate-next-session.use-case';
 import { PLAN_REPOSITORY, StudyPlanRepository } from '../application/ports';
 import { isSessionGenerationSkippedError } from '../domain/session-generation-skipped.error';
-import { DiscordNotifier } from '../notifications/discord.notifier';
 import { QueueService, RetryJob, SessionJob, STUDY_SESSIONS_QUEUE } from './queue.service';
+import { StudyPlanEventService } from '../events/study-plan-event.service';
 
 @Processor(STUDY_SESSIONS_QUEUE, { concurrency: 2 })
 export class StudySessionsProcessor extends WorkerHost {
@@ -15,7 +15,7 @@ export class StudySessionsProcessor extends WorkerHost {
     private readonly generator: GenerateNextStudySessionUseCase,
     private readonly queue: QueueService,
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
-    private readonly notifier: DiscordNotifier,
+    private readonly events: StudyPlanEventService,
   ) {
     super();
   }
@@ -38,11 +38,12 @@ export class StudySessionsProcessor extends WorkerHost {
           `Session generation skipped for plan ${error.planId}: ${error.message}`,
         );
         if (plan) {
-          try {
-            await this.notifier.notifySessionGenerationSkipped(plan, error.waitingTopicCount);
-          } catch {
-            /* Discord must not block the worker */
-          }
+          await this.events.publish({
+            planId: plan.id, type: 'SESSION_SKIPPED', status: 'SKIPPED',
+            severity: 'WARNING', stage: 'session_generation',
+            result: { reason: 'NO_ELIGIBLE_TOPICS', completedTopics: 0, blockedTopics: error.waitingTopicCount },
+            metadata: { planTitle: plan.title },
+          });
         }
         return;
       }
@@ -54,17 +55,10 @@ export class StudySessionsProcessor extends WorkerHost {
       this.logger.error(`Session job failed: ${message}`);
       if (planId) {
         const plan = await this.plans.findById(planId);
-        try {
-          await this.notifier.notifyProcessingError({
-            plan: plan ?? undefined,
-            planId,
-            operation: 'SESSION_GENERATION',
-            phase: 'GENERATING',
-            error,
-          });
-        } catch {
-          /* already logged in notifier */
-        }
+        if (plan) await this.events.publish({
+          planId, type: 'GENERATION_FAILED', status: 'FAILED', severity: 'ERROR',
+          stage: 'session_generation', error, metadata: { planTitle: plan.title },
+        });
       }
       throw error;
     }

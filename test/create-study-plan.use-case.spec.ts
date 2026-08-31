@@ -36,6 +36,7 @@ describe('CreateStudyPlanUseCase', () => {
     notifyPlanRetry: jest.Mock;
   };
   let useCase: CreateStudyPlanUseCase;
+  const events = { publish: jest.fn().mockResolvedValue(undefined) };
 
   beforeEach(() => {
     plans = {
@@ -62,6 +63,7 @@ describe('CreateStudyPlanUseCase', () => {
       plans,
       queue as unknown as QueueService,
       notifier as never,
+      events as never,
     );
   });
 

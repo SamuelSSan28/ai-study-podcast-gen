@@ -32,8 +32,28 @@ model StudyPlan {
 
   topics   StudyPlanTopic[]
   sessions StudySession[]
+  events   StudyPlanEvent[]
 
   @@index([status])
+}
+
+model StudyPlanEvent {
+  id        String    @id
+  planId    String
+  plan      StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  type      String
+  status    String
+  severity  String
+  topicId   String?
+  sessionId String?
+  stage     String?
+  result    String?
+  error     String?
+  metadata  String?
+  createdAt DateTime
+
+  @@index([planId, createdAt])
+  @@index([planId, severity])
 }
 
 model StudyPlanTopic {
