@@ -1,17 +1,30 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   app:
     build:
       context: .
       target: development
+    depends_on:
+      - redis
     env_file:
       - .env
     environment:
       FFMPEG_PATH: /usr/bin/ffmpeg
       AUDIO_STORAGE_PATH: /app/storage/podcasts
+      DATABASE_URL: file:/app/data/app.db
+      REDIS_URL: redis://redis:6379
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
       - ./src:/app/src
+      - ./web:/app/web
+      - ./prisma:/app/prisma
+      - ./data:/app/data
       - podcast-audio:/app/storage/podcasts
     restart: unless-stopped
 
