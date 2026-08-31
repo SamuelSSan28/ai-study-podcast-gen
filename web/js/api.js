@@ -60,5 +60,6 @@ const API = {
     }),
   getSession: (id) => API.request(`/sessions/${id}`),
   retrySession: (id) => API.request(`/sessions/${id}/retry`, { method: 'POST' }),
+  retryPlan: (id) => API.request(`/study-plans/${id}/retry`, { method: 'POST' }),
   audioUrl: (sessionId) => API.url(`/audio/${sessionId}`),
 };

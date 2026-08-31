@@ -2,3 +2,38 @@
 .plan-meta { font-size: 0.85rem; color: #6c757d; }
 .session-row + .session-row { border-top: 1px solid #dee2e6; }
 .progress-mini { height: 6px; }
+
+.provisioning-pipeline {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #adb5bd;
+}
+.pipeline-step.done { color: #198754; }
+.pipeline-step.active { color: #0d6efd; font-weight: 600; }
+.pipeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+.pipeline-step.active .pipeline-dot { opacity: 1; }
+
+.goal-block .goal-text { margin-bottom: 0.25rem; white-space: pre-wrap; }
+
+.placeholder-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.empty-hint { font-size: 0.9rem; }
