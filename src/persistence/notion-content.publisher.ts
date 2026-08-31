@@ -2,9 +2,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@notionhq/client';
 import { StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import {
+  mapProvisioningStatus,
+  mapSessionStage,
+  mapTopicStatus,
+  sessionReadableBlocks,
+} from './notion-mappers';
 import { NotionSchemaProvisioner } from './notion-schema';
-
-type Page = { id: string; url: string; properties: Record<string, unknown> };
 
 @Injectable()
 export class NotionContentPublisher implements OnModuleInit {
@@ -15,7 +19,7 @@ export class NotionContentPublisher implements OnModuleInit {
   private sessionsDb!: string;
   private ready?: Promise<void>;
 
-  constructor(config: ConfigService) {
+  constructor(private readonly config: ConfigService) {
     this.client = new Client({ auth: config.getOrThrow<string>('NOTION_API_KEY') });
     this.provisioner = new NotionSchemaProvisioner(
       this.client,
@@ -41,7 +45,10 @@ export class NotionContentPublisher implements OnModuleInit {
       const page = await this.client.pages.create({
         parent: { database_id: this.plansDb },
         properties: this.planProperties(plan) as never,
-        children: this.blocks([`Goal: ${plan.goal}`, 'Plan generation in progress…']),
+        children: this.blocks([
+          'Plan generation in progress…',
+          `Open in dashboard → ${this.planDashboardUrl(plan.id)}`,
+        ]),
       });
       plan.notionPageId = page.id;
       plan.notionUrl = 'url' in page ? page.url : undefined;
@@ -64,10 +71,11 @@ export class NotionContentPublisher implements OnModuleInit {
         page_id: plan.notionPageId,
         properties: this.planProperties(plan) as never,
       });
-      await this.client.blocks.children.append({
-        block_id: plan.notionPageId,
-        children: this.blocks([plan.overview]),
-      });
+      await this.replacePageBody(plan.notionPageId, [
+        plan.overview || 'Overview pending…',
+        '',
+        `Open in dashboard → ${this.planDashboardUrl(plan.id)}`,
+      ]);
       for (const topic of topics) await this.createTopic(topic);
       await this.createWeekPages(plan.notionPageId, topics);
     } catch (error) {
@@ -77,40 +85,25 @@ export class NotionContentPublisher implements OnModuleInit {
     }
   }
 
-  async publishSession(session: StudySession): Promise<StudySession> {
+  async publishSession(session: StudySession, topicTitle?: string): Promise<StudySession> {
     await this.ensureReady();
     try {
       if (!session.notionPageId) {
         const page = await this.client.pages.create({
           parent: { database_id: this.sessionsDb },
-          properties: this.sessionProperties(session) as never,
+          properties: this.sessionProperties(session, topicTitle) as never,
         });
         session.notionPageId = page.id;
         session.notionUrl = 'url' in page ? page.url : undefined;
-        return session;
-      }
-      await this.client.pages.update({
-        page_id: session.notionPageId,
-        properties: this.sessionProperties(session) as never,
-      });
-      const blocks: string[] = [];
-      if (session.content) blocks.push(`STUDY_CONTENT_JSON:${JSON.stringify(session.content)}`);
-      if (session.research) blocks.push(`RESEARCH_JSON:${JSON.stringify(session.research)}`);
-      if (session.conversationPlan)
-        blocks.push(`CONVERSATION_PLAN_JSON:${JSON.stringify(session.conversationPlan)}`);
-      if (session.rawScript) blocks.push(`RAW_SCRIPT_JSON:${JSON.stringify(session.rawScript)}`);
-      if (session.script) {
-        blocks.push(`SCRIPT_JSON:${JSON.stringify(session.script)}`);
-        blocks.push(
-          `Podcast Script\n${session.script.turns.map((turn) => `${turn.speaker[0] + turn.speaker.slice(1).toLowerCase()}:\n${turn.text}`).join('\n\n')}`,
-        );
-      }
-      if (session.audioUrl) blocks.push(`AUDIO\n${session.audioUrl}`);
-      if (blocks.length) {
-        await this.client.blocks.children.append({
-          block_id: session.notionPageId,
-          children: this.blocks(blocks),
+      } else {
+        await this.client.pages.update({
+          page_id: session.notionPageId,
+          properties: this.sessionProperties(session, topicTitle) as never,
         });
+      }
+      const body = sessionReadableBlocks(session, this.sessionDashboardUrl(session));
+      if (body.length) {
+        await this.replacePageBody(session.notionPageId!, body);
       }
     } catch (error) {
       this.logger.warn(
@@ -158,7 +151,12 @@ export class NotionContentPublisher implements OnModuleInit {
     const page = await this.client.pages.create({
       parent: { database_id: this.sessionsDb },
       properties: this.topicProperties(topic) as never,
-      children: this.blocks([topic.description, ...topic.learningObjectives]),
+      children: this.blocks([
+        topic.description,
+        ...topic.learningObjectives,
+        '',
+        `Open in dashboard → ${this.planDashboardUrl(topic.studyPlanId)}`,
+      ]),
     });
     topic.notionPageId = page.id;
   }
@@ -181,6 +179,30 @@ export class NotionContentPublisher implements OnModuleInit {
     }
   }
 
+  private async replacePageBody(pageId: string, lines: string[]): Promise<void> {
+    await this.archiveChildBlocks(pageId);
+    const children = this.blocks(lines);
+    if (children.length) {
+      await this.client.blocks.children.append({ block_id: pageId, children });
+    }
+  }
+
+  private async archiveChildBlocks(blockId: string): Promise<void> {
+    let cursor: string | undefined;
+    do {
+      const response = await this.client.blocks.children.list({
+        block_id: blockId,
+        start_cursor: cursor,
+      });
+      for (const block of response.results) {
+        if ('id' in block) {
+          await this.client.blocks.update({ block_id: block.id, archived: true });
+        }
+      }
+      cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+    } while (cursor);
+  }
+
   private async archiveChildPages(blockId: string): Promise<void> {
     let cursor: string | undefined;
     do {
@@ -197,6 +219,26 @@ export class NotionContentPublisher implements OnModuleInit {
     } while (cursor);
   }
 
+  private planDashboardUrl(planId: string): string {
+    const url = new URL('/', `${this.dashboardBase()}/`);
+    url.searchParams.set('plan', planId);
+    return url.toString();
+  }
+
+  private sessionDashboardUrl(session: StudySession): string {
+    const url = new URL('/', `${this.dashboardBase()}/`);
+    url.searchParams.set('plan', session.studyPlanId);
+    url.searchParams.set('session', session.id);
+    return url.toString();
+  }
+
+  private dashboardBase(): string {
+    return (
+      this.config.get<string>('DASHBOARD_PUBLIC_BASE_URL')?.replace(/\/$/, '') ??
+      `http://localhost:${this.config.get<number>('PORT', 3000)}`
+    );
+  }
+
   private text(value: string): object {
     return { rich_text: [{ text: { content: value.slice(0, 1900) } }] };
   }
@@ -209,13 +251,9 @@ export class NotionContentPublisher implements OnModuleInit {
     return {
       Name: this.title(p.title),
       'App ID': this.text(p.id),
-      Goal: this.text(p.goal),
       Status: { select: { name: p.status } },
-      'Idempotency Key': this.text(p.idempotencyKey),
-      'Preferred Days': { multi_select: p.preferredDays.map((name) => ({ name })) },
-      'Session Duration': { number: p.targetSessionMinutes },
-      'Current Topic ID': this.text(p.currentTopicId ?? ''),
-      Metadata: this.text(JSON.stringify(p)),
+      Provisioning: { select: { name: mapProvisioningStatus(p.provisioningStatus) } },
+      'Dashboard URL': { url: this.planDashboardUrl(p.id) },
     };
   }
 
@@ -225,7 +263,7 @@ export class NotionContentPublisher implements OnModuleInit {
       'App ID': this.text(t.id),
       'Plan ID': this.text(t.studyPlanId),
       'Record Type': { select: { name: 'TOPIC' } },
-      Status: { select: { name: t.status } },
+      Status: { select: { name: mapTopicStatus(t.status) } },
       Order: { number: t.order },
       Level: { select: { name: t.level } },
       Studied: { checkbox: t.studied },
@@ -233,27 +271,21 @@ export class NotionContentPublisher implements OnModuleInit {
       'Estimated Time': { number: t.estimatedMinutes },
       Week: { number: t.week },
       Sequence: { number: t.sequence },
-      Slug: this.text(t.slug),
       Tags: { multi_select: t.tags.slice(0, 20).map((name) => ({ name: name.slice(0, 100) })) },
-      Metadata: this.text(JSON.stringify(t)),
+      'Dashboard URL': { url: this.planDashboardUrl(t.studyPlanId) },
     };
   }
 
-  private sessionProperties(s: StudySession): Record<string, object> {
-    const metadata = { ...s };
-    delete metadata.content;
-    delete metadata.script;
-    delete metadata.rawScript;
-    delete metadata.conversationPlan;
+  private sessionProperties(s: StudySession, topicTitle?: string): Record<string, object> {
     return {
       Name: this.title(s.title),
       'App ID': this.text(s.id),
       'Plan ID': this.text(s.studyPlanId),
       'Record Type': { select: { name: 'SESSION' } },
-      Status: { select: { name: s.stage } },
-      'Generation Key': this.text(s.generationKey),
+      Status: { select: { name: mapSessionStage(s.stage) } },
+      Topic: this.text(topicTitle ?? s.title),
       'Audio URL': { url: s.audioUrl ?? null },
-      Metadata: this.text(JSON.stringify(metadata)),
+      'Dashboard URL': { url: this.sessionDashboardUrl(s) },
     };
   }
 
