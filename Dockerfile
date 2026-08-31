@@ -11,13 +11,16 @@ COPY prisma ./prisma
 RUN npm ci
 
 COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY scripts/docker-dev.sh ./scripts/docker-dev.sh
 COPY web ./web
 COPY src ./src
+
+RUN chmod +x scripts/docker-dev.sh
 
 ENV NODE_ENV=development
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm run db:migrate && npm run start:dev"]
+CMD ["scripts/docker-dev.sh"]
 
 FROM node:22-bookworm-slim AS build
 

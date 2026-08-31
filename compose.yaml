@@ -18,15 +18,53 @@ services:
       AUDIO_STORAGE_PATH: /app/storage/podcasts
       DATABASE_URL: file:/app/data/app.db
       REDIS_URL: redis://redis:6379
+      # Nest --watch inside Docker (Linux bind mounts often miss inotify events)
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+      WATCHPACK_POLLING: "true"
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
+      # Source + config: edits on the host reload without rebuilding the image
       - ./src:/app/src
       - ./web:/app/web
       - ./prisma:/app/prisma
+      - ./nest-cli.json:/app/nest-cli.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
       - ./data:/app/data
       - podcast-audio:/app/storage/podcasts
+      # Keep container node_modules (do not overwrite with host)
+      - app-node-modules:/app/node_modules
+    command: scripts/docker-dev.sh
     restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: sync
+          path: ./web
+          target: /app/web
+        - action: sync
+          path: ./prisma
+          target: /app/prisma
+        - action: sync
+          path: ./nest-cli.json
+          target: /app/nest-cli.json
+        - action: sync
+          path: ./tsconfig.json
+          target: /app/tsconfig.json
+        - action: sync
+          path: ./tsconfig.build.json
+          target: /app/tsconfig.build.json
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./Dockerfile
 
 volumes:
   podcast-audio:
+  app-node-modules:

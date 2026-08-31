@@ -88,12 +88,28 @@ npm run start:dev
 
 ### Docker Compose
 
+**First time** (or after changing `package.json` / `Dockerfile`):
+
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Compose mounts `src/` and `web/` for hot reload, persists SQLite in `./data`, audio in the `podcast-audio` volume, and starts **Redis** for BullMQ.
+**Day-to-day dev** — no rebuild; `nest start --watch` reloads on save:
+
+```bash
+docker compose up
+# or, with Compose Watch (sync + auto-rebuild only when deps change):
+docker compose watch
+```
+
+Compose mounts `src/`, `web/`, `prisma/` and Nest config files into the container, enables file polling for watch inside Docker, keeps `node_modules` in a named volume, persists SQLite in `./data`, audio in the `podcast-audio` volume, and starts **Redis** for BullMQ.
+
+After editing `prisma/schema.prisma`, run migrations inside the container once:
+
+```bash
+docker compose exec app npm run db:migrate
+```
 
 ## Hackathon submission (micro1 Agentic Workflows)
 
