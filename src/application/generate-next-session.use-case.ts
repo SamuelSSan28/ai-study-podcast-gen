@@ -284,6 +284,15 @@ export class GenerateNextStudySessionUseCase {
             ? `TOPIC_ONLY:${topic.description}`
             : `CURRENT_WEB_RESEARCH:${JSON.stringify(session.research)}`,
         );
+        const articleReview = await this.ai.reviewArticle(topic, session.research, session.content);
+        if (!articleReview.approved) {
+          session.content = await this.ai.reviseArticle(
+            topic,
+            session.research,
+            session.content,
+            articleReview,
+          );
+        }
         this.trace?.endStage('content');
         topic.articleOutline = enrichArticleOutline(
           { ...topic, articleOutline: topic.articleOutline ?? seedArticleOutline(topic) },
@@ -341,7 +350,10 @@ export class GenerateNextStudySessionUseCase {
         session.stage = 'DIALOGUE_POLISH_PENDING';
         await this.sessions.updateSession(session);
         this.trace?.startStage('dialogue_polish');
-        session.script = await this.polisher.polish(session.rawScript, session.podcastMode);
+        session.script = await this.polisher.polish(session.rawScript, session.podcastMode, {
+          article: session.content,
+          plan: session.conversationPlan,
+        });
         this.trace?.endStage('dialogue_polish');
         this.validateScript(session, targetMinutes);
         this.maybeInjectFailure('DIALOGUE_READY');

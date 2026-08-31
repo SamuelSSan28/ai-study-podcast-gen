@@ -71,6 +71,35 @@ describe('PodcastAudioRenderer', () => {
     expect(jobs[0].pauseAfterMs).toBeGreaterThanOrEqual(450);
   });
 
+  it('adds the longer conceptual pause when the article section changes', () => {
+    const script: PodcastScript = {
+      id: 's',
+      title: 'State',
+      version: '1',
+      estimatedDurationSeconds: 60,
+      turns: [
+        {
+          id: 't0',
+          speaker: 'INSTRUCTOR',
+          text: 'First, understand ownership.',
+          sectionId: 'ownership',
+          sequence: 0,
+        },
+        {
+          id: 't1',
+          speaker: 'INSTRUCTOR',
+          text: 'Now we can derive values.',
+          sectionId: 'derived-values',
+          sequence: 1,
+        },
+      ],
+    };
+
+    const jobs = renderer.buildJobs(script);
+    expect(jobs[1].pauseBeforeMs).toBeGreaterThanOrEqual(700);
+    expect(jobs[1].pauseBeforeMs).toBeLessThanOrEqual(1000);
+  });
+
   it('honours explicit delivery.pauseBeforeMs on the first chunk', () => {
     const interviewerConfig = new ConfigService({
       PODCAST_INTERVIEWER_VOICE: 'echo',

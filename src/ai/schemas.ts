@@ -78,6 +78,23 @@ export const contentSchema = z.object({
     .min(3),
   reviewQuestions: z.array(z.string()).nullable(),
 });
+export const articleReviewSchema = z.object({
+  approved: z.boolean(),
+  issues: z.array(
+    z.object({
+      sectionId: z.string().nullable(),
+      type: z.enum([
+        'scope',
+        'progression',
+        'coverage',
+        'clarity',
+        'repetition',
+        'example_overuse',
+      ]),
+      instruction: z.string().min(1),
+    }),
+  ),
+});
 const dialogueRoleSchema = z.enum([
   'HOOK',
   'QUESTION',
@@ -215,35 +232,15 @@ const explanationDialogueReasonSchema = z.enum([
   'comparison',
   'tradeoff',
   'misconception',
-  'ambiguous_case',
-  'decision_review',
-  'interview_practice',
+  'decision',
 ]);
 const explanationSectionSchema = z
   .object({
-    id: z.string(),
-    episodeBeat: z.enum([
-      'HOOK',
-      'LEARNING_PROMISE',
-      'SETUP',
-      'DISCOVERY',
-      'GUIDED_PRACTICE',
-      'FAILURE',
-      'CORRECTION',
-      'INDEPENDENT_CHECK',
-      'MENTAL_MODEL',
-      'RECAP',
-    ]),
-    topic: z.string(),
-    objective: z.string(),
-    concept: z.string(),
-    examples: z.array(z.string()),
-    realWorldCases: z.array(z.string()),
+    articleSectionId: z.string(),
+    purpose: z.string(),
     speakerMode: z.enum(['instructor_solo', 'dialogue']),
     dialogueReason: explanationDialogueReasonSchema.nullable(),
-    coHostMoments: z.array(z.string()),
-    keyTakeaways: z.array(z.string()),
-    faqItems: z.array(z.object({ question: z.string(), answer: z.string() })).nullable(),
+    recap: z.boolean(),
   })
   .superRefine((section, ctx) => {
     if (section.speakerMode === 'dialogue' && !section.dialogueReason) {
@@ -253,38 +250,19 @@ const explanationSectionSchema = z
         path: ['dialogueReason'],
       });
     }
-    if (section.speakerMode === 'instructor_solo' && section.coHostMoments.length > 0) {
+    if (section.speakerMode === 'instructor_solo' && section.dialogueReason !== null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'coHostMoments must be empty when speakerMode is instructor_solo',
-        path: ['coHostMoments'],
+        message: 'dialogueReason must be null when speakerMode is instructor_solo',
+        path: ['dialogueReason'],
       });
     }
   });
-export const explanationConversationPlanSchema = conversationPlanBaseSchema
-  .extend({
+export const explanationConversationPlanSchema = z.object({
     mode: z.literal('EXPLANATION'),
-    centralQuestion: z.string().min(1),
-    runningScenario: z.object({
-      name: z.string().min(1),
-      description: z.string().min(1),
-      components: z.array(z.string()).min(2),
-    }),
-    deliveryApproach: z.enum(['solo_lecture', 'instructor_with_faq', 'guided_walkthrough']),
-    deliveryRationale: z.string().min(1),
-    sections: z.array(explanationSectionSchema).min(5),
-  })
-  .superRefine((plan, ctx) => {
-    if (plan.deliveryApproach !== 'solo_lecture') return;
-    for (let i = 0; i < plan.sections.length; i++) {
-      if (plan.sections[i].speakerMode !== 'instructor_solo') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'solo_lecture plans require speakerMode instructor_solo on every section',
-          path: ['sections', i, 'speakerMode'],
-        });
-      }
-    }
+    version: z.string(),
+    title: z.string(),
+    sections: z.array(explanationSectionSchema).min(1),
   });
 const explanationTurnSchema = z.object({
   id: z.string(),

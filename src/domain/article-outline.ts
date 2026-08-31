@@ -1,40 +1,37 @@
 import {
   ArticleOutline,
-  ArticleOutlineSection,
   StudyContent,
   StudyPlanTopic,
   TopicResearch,
 } from './models';
 
 export function seedArticleOutline(topic: Pick<StudyPlanTopic, 'learningObjectives' | 'title'>): ArticleOutline {
-  const fromObjectives: ArticleOutlineSection[] = topic.learningObjectives.map((title, index) => ({
-    id: `section-${index + 1}`,
-    title,
-    promptHint: `Cover learning objective: ${title}`,
-  }));
-  if (fromObjectives.length) return { sections: fromObjectives };
-
   return {
     sections: [
       {
-        id: 'introduction',
-        title: 'Introduction',
-        promptHint: `Explain why "${topic.title}" matters and what the learner will understand`,
+        id: 'opening',
+        title: 'Opening / motivation',
+        promptHint: `Establish the problem that makes "${topic.title}" useful`,
       },
       {
-        id: 'core-concepts',
-        title: 'Core concepts',
-        promptHint: `Teach the essential concepts for "${topic.title}"`,
+        id: 'conceptual-progression',
+        title: 'Progressive conceptual explanation',
+        promptHint: `Build the concepts for "${topic.title}" in dependency order`,
       },
       {
-        id: 'application',
-        title: 'Application',
-        promptHint: `Apply the concepts from "${topic.title}" to a concrete example`,
+        id: 'practical-demonstration',
+        title: 'Relevant practical demonstration',
+        promptHint: 'Use an example or code only where it materially improves understanding',
       },
       {
-        id: 'summary',
-        title: 'Summary',
-        promptHint: 'Recap the essential points and mental model',
+        id: 'boundary',
+        title: 'Important boundary or misconception',
+        promptHint: 'Clarify only the distinctions needed by the current lesson',
+      },
+      {
+        id: 'mental-model',
+        title: 'Closing mental model',
+        promptHint: 'Reinforce the reusable mental model the learner should retain',
       },
     ],
   };

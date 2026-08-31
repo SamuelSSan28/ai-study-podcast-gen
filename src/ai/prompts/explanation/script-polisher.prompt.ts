@@ -1,37 +1,30 @@
-import { RawPodcastScript } from '../../../domain/models';
+import { ExplanationConversationPlan, RawPodcastScript, StudyContent } from '../../../domain/models';
 import { NOTION_POLISHER_PUBLISH_RULES } from '../../../persistence/notion-format.contract';
-import {
-  EXPLANATION_DELIVERY_HINTS,
-  EXPLANATION_PEDAGOGICAL_RULES,
-} from './pedagogical-rules';
 import { EXPLANATION_SPEAKER_POLICY } from './speaker-policy';
 
-export const EXPLANATION_POLISHER_PROMPT_VERSION = 'script-polisher.explanation.v4';
+export const EXPLANATION_POLISHER_PROMPT_VERSION = 'script-polisher.explanation.v5';
 
-export function buildExplanationPolisherPrompt(script: RawPodcastScript): string {
-  return `Polish this didactic lesson script so it sounds natural when spoken aloud in English.
+export function buildExplanationPolisherPrompt(input: {
+  article: StudyContent;
+  plan: ExplanationConversationPlan;
+  rawScript: RawPodcastScript;
+}): string {
+  return `Polish only the spoken delivery of this didactic lesson.
 
-Preserve technical meaning, section coverage, speaker identities (INSTRUCTOR, optional CO_HOST), turn ids, roles, sequence, and running-scenario continuity.
+The article remains the canonical technical source. Preserve what must remain true, every source
+articleSectionId, speaker mode, and conceptual sequence. You may shorten, merge repetitive phrasing,
+improve transitions, and make sentences easier to hear. Do not add unsupported technical information,
+turn instructor-only teaching into dialogue, change conceptual dependencies, or generate pause milliseconds.
+
+Remove acknowledgment-only turns. A second speaker must contribute a question, misconception,
+contrast, inference, alternative, or decision. If a turn merely agrees with or paraphrases the
+previous turn, remove or merge it. If several examples demonstrate the same point, keep the strongest.
+Preserve stable ids where retained and renumber sequence contiguously from zero.
 
 ${EXPLANATION_SPEAKER_POLICY}
-
-Do not add CO_HOST turns to sections that are currently instructor-only.
-Do not convert solo foundational explanations into dialogue.
-Do not insert a second speaker merely to agree with or paraphrase the instructor.
-
-Improve:
-- Spoken rhythm: break dense sentences into short TTS-friendly phrases.
-- Progressive discovery: concepts should emerge from problems, not precede them.
-- Where CO_HOST already appears: make questions and mistakes feel real, not FAQ-shaped.
-- Pauses: set delivery.pauseAfterMs on questions, challenges, and answer reveals.
-
-Do not add new concepts beyond the script. Do not convert the lesson into a debate or interview.
-
-${EXPLANATION_PEDAGOGICAL_RULES}
-
-${EXPLANATION_DELIVERY_HINTS}
-
 ${NOTION_POLISHER_PUBLISH_RULES}
 
-Script: ${JSON.stringify(script)}`;
+CANONICAL ARTICLE: ${JSON.stringify(input.article)}
+DELIVERY PLAN: ${JSON.stringify(input.plan)}
+RAW SCRIPT: ${JSON.stringify(input.rawScript)}`;
 }

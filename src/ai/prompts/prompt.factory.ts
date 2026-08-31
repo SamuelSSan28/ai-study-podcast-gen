@@ -73,7 +73,9 @@ export function resolvePrompt(input: {
 export function resolvePrompt(input: {
   stage: 'dialogue-polisher';
   mode: PodcastMode;
-  value: RawPodcastScript;
+  value:
+    | RawPodcastScript
+    | { article: StudyContent; plan: ConversationPlan; rawScript: RawPodcastScript };
 }): ResolvedPrompt<RawPodcastScript>;
 export function resolvePrompt(input: {
   stage: PromptStage;
@@ -81,7 +83,8 @@ export function resolvePrompt(input: {
   value:
     | CreateConversationPlanInput
     | { topic: StudyPlanTopic; content: StudyContent; plan: ConversationPlan }
-    | RawPodcastScript;
+    | RawPodcastScript
+    | { article: StudyContent; plan: ConversationPlan; rawScript: RawPodcastScript };
 }): ResolvedPrompt<ConversationPlan | RawPodcastScript> {
   if (input.stage === 'conversation-plan') {
     const value = input.value as CreateConversationPlanInput;
@@ -143,7 +146,10 @@ export function resolvePrompt(input: {
       schema: discussionScriptSchema,
     };
   }
-  const script = input.value as RawPodcastScript;
+  const polishValue = input.value as
+    | RawPodcastScript
+    | { article: StudyContent; plan: ConversationPlan; rawScript: RawPodcastScript };
+  const script = 'rawScript' in polishValue ? polishValue.rawScript : polishValue;
   if (input.mode === 'INTERVIEW') {
     return {
       prompt: buildInterviewPolisherPrompt(script),
@@ -152,8 +158,15 @@ export function resolvePrompt(input: {
     };
   }
   if (input.mode === 'EXPLANATION') {
+    if (!('rawScript' in polishValue)) {
+      throw new Error('Explanation polishing requires article and plan context');
+    }
     return {
-      prompt: buildExplanationPolisherPrompt(script),
+      prompt: buildExplanationPolisherPrompt({
+        article: polishValue.article,
+        plan: polishValue.plan as Extract<ConversationPlan, { mode: 'EXPLANATION' }>,
+        rawScript: script,
+      }),
       version: EXPLANATION_POLISHER_PROMPT_VERSION,
       schema: explanationScriptSchema,
     };

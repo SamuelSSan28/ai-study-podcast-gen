@@ -23,17 +23,25 @@ export class PodcastScriptValidator {
     const speakers = new Set(script.turns.map((turn) => turn.speaker));
     const hasNarrator = speakers.has('INSTRUCTOR') || speakers.has('HOST');
     if (!hasNarrator) errors.push('Missing required narrator (INSTRUCTOR or HOST)');
-    if (plan.deliveryApproach === 'solo_lecture' && speakers.has('CO_HOST')) {
+    if (plan.deliveryApproach === 'solo_lecture' && speakers.has('CO_HOST'))
       errors.push('solo_lecture plan should not include CO_HOST turns');
-    }
     for (const section of plan.sections) {
+      const sectionId = section.articleSectionId ?? section.id;
+      if (!sectionId) {
+        errors.push('Plan section is missing articleSectionId');
+        continue;
+      }
       const mode = section.speakerMode ?? 'instructor_solo';
+      if (mode === 'dialogue' && !section.dialogueReason)
+        errors.push(`Dialogue section ${sectionId} requires dialogueReason`);
       if (mode !== 'instructor_solo') continue;
       const hasCoHost = script.turns.some(
-        (turn) => turn.sectionId === section.id && turn.speaker === 'CO_HOST',
+        (turn) => turn.sectionId === sectionId && turn.speaker === 'CO_HOST',
       );
       if (hasCoHost) {
-        errors.push(`Section ${section.id} is instructor_solo and must not include CO_HOST turns`);
+        errors.push(
+          `Section ${sectionId} is instructor_solo and must not include CO_HOST turns`,
+        );
       }
     }
     if (script.turns.length < 1) errors.push('Script must have at least one turn');
@@ -44,14 +52,20 @@ export class PodcastScriptValidator {
     if (script.turns.some((turn) => turn.text.length > maxChars))
       errors.push(`Turn exceeds ${maxChars} characters`);
     const represented = new Set(script.turns.map((turn) => turn.sectionId));
+    const validSectionIds = new Set(
+      plan.sections.map((section) => section.articleSectionId ?? section.id).filter(Boolean),
+    );
+    for (const turn of script.turns)
+      if (!validSectionIds.has(turn.sectionId)) errors.push(`Unknown section ${turn.sectionId}`);
     for (const section of plan.sections)
-      if (!represented.has(section.id)) errors.push(`Missing section ${section.id}`);
+      if (!represented.has(section.articleSectionId ?? section.id ?? ''))
+        errors.push(`Missing section ${section.articleSectionId ?? section.id}`);
     if (errors.length) throw new Error(`Invalid podcast script: ${errors.join('; ')}`);
   }
 
   private validateDialogue(
     script: PodcastScript,
-    plan: ConversationPlan,
+    plan: Exclude<ConversationPlan, ExplanationConversationPlan>,
     targetMinutes: number,
   ): void {
     const errors: string[] = [];
