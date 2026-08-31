@@ -8,10 +8,6 @@ import {
   STUDY_PROGRESS_QUEUE,
   STUDY_SESSIONS_QUEUE,
 } from './queue.service';
-import { StudyPlansProcessor } from './study-plans.processor';
-import { StudySessionsProcessor } from './study-sessions.processor';
-import { StudyProgressProcessor } from './study-progress.processor';
-import { NotionProcessor } from './notion.processor';
 
 @Module({
   imports: [
@@ -28,13 +24,7 @@ import { NotionProcessor } from './notion.processor';
       { name: NOTION_QUEUE },
     ),
   ],
-  providers: [
-    QueueService,
-    StudyPlansProcessor,
-    StudySessionsProcessor,
-    StudyProgressProcessor,
-    NotionProcessor,
-  ],
+  providers: [QueueService],
   exports: [QueueService, BullModule],
 })
 export class QueueModule {}

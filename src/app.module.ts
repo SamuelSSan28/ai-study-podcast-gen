@@ -14,6 +14,7 @@ import { PLAN_REPOSITORY, SESSION_REPOSITORY, TOPIC_REPOSITORY } from './applica
 import { GenerateStudyPlanUseCase } from './application/generate-study-plan.use-case';
 import { CreateStudyPlanUseCase } from './application/create-study-plan.use-case';
 import { GetStudyPlanStatusUseCase } from './application/get-study-plan-status.use-case';
+import { RetryStudyPlanUseCase } from './application/retry-study-plan.use-case';
 import { ArchiveStudyPlanUseCase } from './application/archive-study-plan.use-case';
 import { MarkTopicStudiedUseCase } from './application/mark-topic-studied.use-case';
 import { GenerateNextStudySessionUseCase } from './application/generate-next-session.use-case';
@@ -38,6 +39,10 @@ import { PrismaService } from './persistence/prisma.service';
 import { SqliteRepository } from './persistence/sqlite.repository';
 import { NotionContentPublisher } from './persistence/notion-content.publisher';
 import { QueueModule } from './queue/queue.module';
+import { StudyPlansProcessor } from './queue/study-plans.processor';
+import { StudySessionsProcessor } from './queue/study-sessions.processor';
+import { StudyProgressProcessor } from './queue/study-progress.processor';
+import { NotionProcessor } from './queue/notion.processor';
 
 @Module({
   imports: [
@@ -45,7 +50,7 @@ import { QueueModule } from './queue/queue.module';
     ScheduleModule.forRoot(),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'web'),
-      exclude: ['/study-plans*', '/sessions*', '/audio*'],
+      exclude: ['/study-plans/{*path}', '/sessions/{*path}', '/audio/{*path}'],
     }),
     QueueModule,
   ],
@@ -74,9 +79,18 @@ import { QueueModule } from './queue/queue.module';
     { provide: PLAN_REPOSITORY, useExisting: SqliteRepository },
     { provide: TOPIC_REPOSITORY, useExisting: SqliteRepository },
     { provide: SESSION_REPOSITORY, useExisting: SqliteRepository },
+    OpenAiGateway,
+    OpenAiConversationPlanner,
+    OpenAiPodcastScriptGenerator,
+    OpenAiDialoguePolisher,
+    PodcastScriptValidator,
+    ConfigurableAudioDirector,
+    TurnBasedTtsService,
+    FfmpegAudioComposer,
     GenerateStudyPlanUseCase,
     CreateStudyPlanUseCase,
     GetStudyPlanStatusUseCase,
+    RetryStudyPlanUseCase,
     ArchiveStudyPlanUseCase,
     MarkTopicStudiedUseCase,
     GenerateNextStudySessionUseCase,
@@ -85,6 +99,10 @@ import { QueueModule } from './queue/queue.module';
     PodcastScheduler,
     LocalProgressCron,
     RunTraceService,
+    StudyPlansProcessor,
+    StudySessionsProcessor,
+    StudyProgressProcessor,
+    NotionProcessor,
   ],
 })
 export class AppModule {}
