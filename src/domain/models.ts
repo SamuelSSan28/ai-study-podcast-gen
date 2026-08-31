@@ -42,6 +42,17 @@ export interface StudyPlan {
   targetSessionMinutes: number;
   currentTopicId?: string;
 }
+export interface ArticleOutlineSection {
+  id: string;
+  title: string;
+  promptHint?: string;
+  sourceHints?: string[];
+}
+
+export interface ArticleOutline {
+  sections: ArticleOutlineSection[];
+}
+
 export interface StudyPlanTopic {
   id: string;
   studyPlanId: string;
@@ -63,6 +74,7 @@ export interface StudyPlanTopic {
   estimatedMinutes: number;
   scheduledAt: string;
   studied: boolean;
+  articleOutline?: ArticleOutline;
 }
 export interface TopicResearch {
   summary: string;
@@ -92,8 +104,8 @@ export interface StudyContent {
 }
 
 export interface ConstraintReveal {
-  afterTurn?: number;
-  condition?: string;
+  afterTurn?: number | null;
+  condition?: string | null;
   reveal: string;
   expectedImpact: string;
 }
@@ -106,7 +118,7 @@ export interface InterviewConversationSection {
   candidateExpectedReasoning: string[];
   interviewerChallenges: string[];
   constraintsToReveal: ConstraintReveal[];
-  transitionHint?: string;
+  transitionHint?: string | null;
 }
 export interface DiscussionSection {
   id: string;
@@ -118,8 +130,8 @@ export interface DiscussionSection {
   tensions: string[];
   questionsToNaturallyRaise: string[];
   scenarioReveals: ConstraintReveal[];
-  possibleDisagreement?: string;
-  connectionToPreviousSection?: string;
+  possibleDisagreement?: string | null;
+  connectionToPreviousSection?: string | null;
 }
 export interface IncidentScenario {
   title: string;
@@ -133,7 +145,7 @@ interface ConversationPlanBase {
   title: string;
   context: { companyType: string; product: string; initialProblem: string; scale: string[] };
   objectives: string[];
-  incident?: IncidentScenario;
+  incident?: IncidentScenario | null;
   closing: { finalQuestion: string; expectedThemes: string[] };
 }
 export interface InterviewConversationPlan extends ConversationPlanBase {
@@ -165,11 +177,11 @@ export interface CreateConversationPlanInput {
 
 export type PodcastSpeaker = 'INTERVIEWER' | 'CANDIDATE' | 'ENGINEER_A' | 'ENGINEER_B' | 'HOST';
 export interface DeliveryDirection {
-  tone?: 'neutral' | 'curious' | 'skeptical' | 'thoughtful' | 'confident' | 'concerned';
-  pace?: 'slow' | 'medium' | 'fast';
-  emphasis?: string[];
-  pauseBeforeMs?: number;
-  pauseAfterMs?: number;
+  tone?: 'neutral' | 'curious' | 'skeptical' | 'thoughtful' | 'confident' | 'concerned' | null;
+  pace?: 'slow' | 'medium' | 'fast' | null;
+  emphasis?: string[] | null;
+  pauseBeforeMs?: number | null;
+  pauseAfterMs?: number | null;
 }
 export interface PodcastTurn {
   id: string;
@@ -177,7 +189,7 @@ export interface PodcastTurn {
   text: string;
   sectionId: string;
   sequence: number;
-  delivery?: DeliveryDirection;
+  delivery?: DeliveryDirection | null;
 }
 export interface RawPodcastScript {
   id: string;

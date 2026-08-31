@@ -54,6 +54,7 @@ export interface GeneratedPlan {
       | 'order'
       | 'scheduledAt'
       | 'studied'
+      | 'articleOutline'
     >
   >;
 }

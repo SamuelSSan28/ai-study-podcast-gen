@@ -1,7 +1,14 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { PLAN_REPOSITORY, PlanGenerationInput, StudyPlanRepository } from './ports';
+import {
+  PLAN_REPOSITORY,
+  PlanGenerationInput,
+  StudyPlanRepository,
+  StudyTopicRepository,
+  TOPIC_REPOSITORY,
+} from './ports';
 import { StudyPlanTopic } from '../domain/models';
+import { seedArticleOutline } from '../domain/article-outline';
 import { topicSlug } from '../domain/topic-normalization';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { STUDY_DEFAULTS } from '../config/study-defaults';
@@ -11,12 +18,24 @@ import { calculateStudyDates } from '../domain/study-schedule';
 export class GenerateStudyPlanUseCase {
   constructor(
     @Inject(PLAN_REPOSITORY) private readonly plans: StudyPlanRepository,
+    @Inject(TOPIC_REPOSITORY) private readonly topics: StudyTopicRepository,
     private readonly ai: OpenAiGateway,
   ) {}
 
   async execute(planId: string): Promise<void> {
     const pending = await this.plans.findById(planId);
     if (!pending) throw new NotFoundException(`Study plan ${planId} not found`);
+
+    const existing = await this.topics.findTopicsByPlan(planId);
+    if (existing.length > 0) {
+      if (pending.provisioningStatus === 'CREATING' || pending.provisioningStatus === 'FAILED') {
+        pending.provisioningStatus = 'GENERATING';
+        pending.provisioningError = undefined;
+        if (!pending.currentTopicId) pending.currentTopicId = existing[0]?.id;
+        await this.plans.updatePlan(pending);
+      }
+      return;
+    }
 
     const planningInput: PlanGenerationInput = {
       title: pending.title,
@@ -40,7 +59,7 @@ export class GenerateStudyPlanUseCase {
       const slug = topicSlug(topic.title);
       if (seen.has(slug)) throw new Error(`Duplicate generated topic: ${topic.title}`);
       seen.add(slug);
-      return {
+      const built: StudyPlanTopic = {
         ...topic,
         id: randomUUID(),
         studyPlanId: planId,
@@ -50,6 +69,8 @@ export class GenerateStudyPlanUseCase {
         scheduledAt: dates[index],
         studied: false,
       };
+      built.articleOutline = seedArticleOutline(built);
+      return built;
     });
 
     pending.overview = generated.overview;

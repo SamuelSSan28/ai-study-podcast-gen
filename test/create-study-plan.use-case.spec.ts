@@ -31,6 +31,10 @@ describe('CreateStudyPlanUseCase', () => {
     enqueuePlanGeneration: jest.Mock;
     enqueueNotionPlanPending: jest.Mock;
   };
+  let notifier: {
+    notifyPlanStarted: jest.Mock;
+    notifyPlanRetry: jest.Mock;
+  };
   let useCase: CreateStudyPlanUseCase;
 
   beforeEach(() => {
@@ -50,7 +54,15 @@ describe('CreateStudyPlanUseCase', () => {
       enqueuePlanGeneration: jest.fn().mockResolvedValue('job-1'),
       enqueueNotionPlanPending: jest.fn().mockResolvedValue(undefined),
     };
-    useCase = new CreateStudyPlanUseCase(plans, queue as unknown as QueueService);
+    notifier = {
+      notifyPlanStarted: jest.fn().mockResolvedValue(undefined),
+      notifyPlanRetry: jest.fn().mockResolvedValue(undefined),
+    };
+    useCase = new CreateStudyPlanUseCase(
+      plans,
+      queue as unknown as QueueService,
+      notifier as never,
+    );
   });
 
   it('creates a pending plan and enqueues generation', async () => {

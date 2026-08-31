@@ -12,6 +12,7 @@ import {
   AudioStorage,
 } from './ports';
 import { PodcastMode, StudyPlan, StudyPlanTopic, StudySession } from '../domain/models';
+import { enrichArticleOutline, seedArticleOutline } from '../domain/article-outline';
 import { selectNextTopic } from '../domain/next-topic-policy';
 import { OpenAiGateway } from '../ai/openai.gateway';
 import { LocalAudioService } from '../audio/local-audio.service';
@@ -99,15 +100,64 @@ export class GenerateNextStudySessionUseCase {
       throw new Error(
         `No eligible unique topic remains (${selection.rejected.length} roadmap topics rejected)`,
       );
+    return this.beginSessionForTopic(plan, topic, mode);
+  }
+
+  async executeForProvisioning(planId: string, requestedMode?: PodcastMode): Promise<StudySession> {
+    this.trace?.beginRun({
+      runId: this.evalConfig.runId,
+      caseId: this.evalConfig.caseId,
+      mode: this.evalConfig.mode,
+    });
+    const mode =
+      requestedMode ?? this.config.get<PodcastMode>('DEFAULT_PODCAST_MODE', 'DISCUSSION');
+    const plan = await this.plans.findById(planId);
+    if (!plan || plan.status !== 'ACTIVE') throw new Error('Active study plan not found');
+
+    if (!plan.currentTopicId) throw new Error('Study plan has no current topic for provisioning');
+    const topic = await this.topics.findTopicById(plan.currentTopicId);
+    if (!topic) throw new Error(`Current topic ${plan.currentTopicId} not found`);
+
     const key = `${planId}:${topic.id}:${mode}`;
     const existing = await this.sessions.findByGenerationKey(key);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.stage === 'COMPLETED' && existing.notificationStatus !== 'FAILED') {
+        return existing;
+      }
+      return this.resumeSession(existing, topic, plan);
+    }
+
+    return this.beginSessionForTopic(plan, topic, mode);
+  }
+
+  private async beginSessionForTopic(
+    plan: StudyPlan,
+    topic: StudyPlanTopic,
+    mode: PodcastMode,
+  ): Promise<StudySession> {
+    const key = `${plan.id}:${topic.id}:${mode}`;
+    const existing = await this.sessions.findByGenerationKey(key);
+    if (existing) {
+      if (existing.stage === 'COMPLETED' && existing.notificationStatus !== 'FAILED') {
+        return existing;
+      }
+      return this.resumeSession(existing, topic, plan);
+    }
+
     topic.status = 'GENERATING';
     await this.topics.update(topic);
+    if (!this.evalConfig.skipNotification) {
+      try {
+        await this.notifier.notifyTopicStarted(plan, topic, mode);
+      } catch {
+        /* Discord must not block generation */
+      }
+    }
+
     const session: StudySession = {
       id: randomUUID(),
       generationKey: key,
-      studyPlanId: planId,
+      studyPlanId: plan.id,
       topicId: topic.id,
       title: topic.title,
       podcastMode: mode,
@@ -140,17 +190,39 @@ export class GenerateNextStudySessionUseCase {
   async retry(sessionId: string): Promise<StudySession> {
     const session = await this.sessions.findSessionById(sessionId);
     if (!session) throw new Error('Session not found');
-    if (session.stage !== 'FAILED' && session.notificationStatus !== 'FAILED') return session;
     const topic = await this.topics.findTopicById(session.topicId);
     if (!topic) throw new Error('Session topic not found');
     const plan = await this.plans.findById(session.studyPlanId);
     if (!plan) throw new Error('Session study plan not found');
+    if (session.stage === 'COMPLETED' && session.notificationStatus !== 'FAILED') {
+      return session;
+    }
+    return this.resumeSession(session, topic, plan);
+  }
+
+  private async resumeSession(
+    session: StudySession,
+    topic: StudyPlanTopic,
+    plan: StudyPlan,
+  ): Promise<StudySession> {
     session.podcastMode ??= 'INTERVIEW';
     session.failureMessage = undefined;
     session.lastError = undefined;
     session.retryCount += 1;
     this.trace?.recordRetry(session.retryCount);
+    const wasGenerating = topic.status === 'GENERATING';
     topic.status = 'GENERATING';
+    if (session.stage === 'FAILED') {
+      session.stage = session.lastSuccessfulStage ?? 'CONTENT_PENDING';
+    }
+    await this.topics.update(topic);
+    if (!wasGenerating && !this.evalConfig.skipNotification) {
+      try {
+        await this.notifier.notifyTopicStarted(plan, topic, session.podcastMode);
+      } catch {
+        /* Discord must not block generation */
+      }
+    }
     return this.runRemainingStages(session, topic, plan);
   }
 
@@ -206,8 +278,14 @@ export class GenerateNextStudySessionUseCase {
             : `CURRENT_WEB_RESEARCH:${JSON.stringify(session.research)}`,
         );
         this.trace?.endStage('content');
+        topic.articleOutline = enrichArticleOutline(
+          { ...topic, articleOutline: topic.articleOutline ?? seedArticleOutline(topic) },
+          session.content,
+          session.research,
+        );
         session.stage = session.lastSuccessfulStage = 'CONTENT_READY';
         session.technicalContentHash = this.hash(session.content);
+        await this.topics.update(topic);
         await this.sessions.updateSession(session);
       }
       const targetMinutes = Math.min(plan.targetSessionMinutes ?? 45, 30);

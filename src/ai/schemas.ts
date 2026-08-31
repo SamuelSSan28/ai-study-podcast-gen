@@ -25,7 +25,7 @@ export const topicResearchSchema = z.object({
     .array(
       z.object({
         title: z.string().min(1),
-        url: z.string().url(),
+        url: z.string().min(1),
         publisher: z.string().nullable(),
         type: z.enum(['OFFICIAL_DOCUMENTATION', 'PAPER', 'ARTICLE', 'BOOK', 'OTHER']),
       }),
@@ -69,13 +69,13 @@ const scriptBaseSchema = z.object({
           .object({
             tone: z
               .enum(['neutral', 'curious', 'skeptical', 'thoughtful', 'confident', 'concerned'])
-              .optional(),
-            pace: z.enum(['slow', 'medium', 'fast']).optional(),
-            emphasis: z.array(z.string()).optional(),
-            pauseBeforeMs: z.number().int().nonnegative().optional(),
-            pauseAfterMs: z.number().int().nonnegative().optional(),
+              .nullable(),
+            pace: z.enum(['slow', 'medium', 'fast']).nullable(),
+            emphasis: z.array(z.string()).nullable(),
+            pauseBeforeMs: z.number().int().nonnegative().nullable(),
+            pauseAfterMs: z.number().int().nonnegative().nullable(),
           })
-          .optional(),
+          .nullable(),
       }),
     )
     .min(4),
@@ -108,7 +108,7 @@ const conversationPlanBaseSchema = z.object({
       expectedInvestigation: z.array(z.string()),
       sectionId: z.string(),
     })
-    .optional(),
+    .nullable(),
   closing: z.object({ finalQuestion: z.string(), expectedThemes: z.array(z.string()) }),
 });
 export const interviewConversationPlanSchema = conversationPlanBaseSchema.extend({
@@ -125,13 +125,13 @@ export const interviewConversationPlanSchema = conversationPlanBaseSchema.extend
         interviewerChallenges: z.array(z.string()),
         constraintsToReveal: z.array(
           z.object({
-            afterTurn: z.number().int().positive().optional(),
-            condition: z.string().optional(),
+            afterTurn: z.number().int().positive().nullable(),
+            condition: z.string().nullable(),
             reveal: z.string(),
             expectedImpact: z.string(),
           }),
         ),
-        transitionHint: z.string().optional(),
+        transitionHint: z.string().nullable(),
       }),
     )
     .min(2),
@@ -151,14 +151,14 @@ export const discussionConversationPlanSchema = conversationPlanBaseSchema.exten
         questionsToNaturallyRaise: z.array(z.string()),
         scenarioReveals: z.array(
           z.object({
-            afterTurn: z.number().int().positive().optional(),
-            condition: z.string().optional(),
+            afterTurn: z.number().int().positive().nullable(),
+            condition: z.string().nullable(),
             reveal: z.string(),
             expectedImpact: z.string(),
           }),
         ),
-        possibleDisagreement: z.string().optional(),
-        connectionToPreviousSection: z.string().optional(),
+        possibleDisagreement: z.string().nullable(),
+        connectionToPreviousSection: z.string().nullable(),
       }),
     )
     .min(2),
