@@ -1,6 +1,6 @@
 # Improvement Changelog
 
-Experiment history for the hackathon. Each entry links to automated metrics in `evaluation/results/report.md` and raw runs in `artifacts/runs/`.
+Workflow experiment history. Each entry links to automated metrics in `evaluation/results/report.md` and raw runs in `artifacts/runs/`.
 
 ## Baseline — generic single prompt
 

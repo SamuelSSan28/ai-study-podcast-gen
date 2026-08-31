@@ -163,7 +163,7 @@ run_id, case_id, workflow_version
   → duplicateChecks, validations
 ```
 
-See `src/observability/run-trace.service.ts` and exported trajectories in `docs/hackathon/trajectories/`.
+See `src/observability/run-trace.service.ts` and exported trajectories in `docs/evaluation/trajectories/`.
 
 ## Baseline comparison
 

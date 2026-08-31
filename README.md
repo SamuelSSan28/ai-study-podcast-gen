@@ -95,9 +95,9 @@ docker compose up --build
 
 Compose mounts `src/` and `web/` for hot reload, persists SQLite in `./data`, audio in the `podcast-audio` volume, and starts **Redis** for BullMQ.
 
-## Hackathon submission (micro1 Agentic Workflows)
+## Workflow evaluation
 
-This project includes automated baseline vs final evaluation for the hackathon:
+This project includes automated baseline vs final workflow evaluation:
 
 | Metric | Baseline | Final workflow | Change |
 |---|---:|---:|---|
@@ -107,15 +107,13 @@ This project includes automated baseline vs final evaluation for the hackathon:
 
 _Regenerate the table with `npm run eval:all` after filling `.env`. Cases come from repo tests — see [`evaluation/cases/README.md`](evaluation/cases/README.md)._
 
-### Submission docs
+### Evaluation docs
 
-- [Hackathon overview](docs/hackathon/README.md)
-- [Improvement changelog](docs/hackathon/improvement-changelog.md)
-- [Evaluation methodology](docs/hackathon/evaluation.md)
-- [Reproduction guide](docs/hackathon/reproduction.md)
-- [Agent trajectories](docs/hackathon/trajectories/)
-- [Video script](docs/hackathon/video-script.md)
-- [Pre-existing vs hackathon work](docs/hackathon/pre-existing-vs-hackathon.md)
+- [Evaluation overview](docs/evaluation/README.md)
+- [Improvement changelog](docs/evaluation/improvement-changelog.md)
+- [Evaluation methodology](docs/evaluation/evaluation.md)
+- [Reproduction guide](docs/evaluation/reproduction.md)
+- [Agent trajectories](docs/evaluation/trajectories/)
 
 ### Eval commands
 
