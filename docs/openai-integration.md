@@ -32,6 +32,13 @@ Models are configured per operation via environment variables (see [environment.
 On LLM failure the gateway retries once with the same model, then escalates to
 `FALLBACK_MODEL` (default `gpt-5.6-sol`).
 
+Every attempt sends a deterministic `prompt_cache_key` made from the operation name
+and a SHA-256 digest of the prompt. The same-model retry therefore stays on the same
+cache route without putting prompt contents in the key. The fallback receives the key
+too, although cache reuse is model-dependent. This is prompt-prefix caching rather
+than response caching: the request still runs again, while workflow checkpoints remain
+responsible for reusing completed artifacts.
+
 `AiModelConfig` (`src/config/ai-model.config.ts`) reads these values at runtime.
 Legacy `OPENAI_*_MODEL` variables still work as fallbacks.
 
@@ -44,6 +51,7 @@ All LLM calls share a single private method:
 const response = await this.client.responses.parse({
   model,
   input,                                    // prompt string
+  prompt_cache_key,                         // stable, hashed key across retries
   text: { format: zodTextFormat(schema, name) },
   ...(webSearch ? {
     tools: [{ type: 'web_search' }],
@@ -59,6 +67,9 @@ Key points:
 2. **`zodTextFormat(schema, name)`** — converts a Zod schema into a strict JSON Schema for Structured Outputs.
 3. **Double validation** — the SDK parses the response; the gateway runs `schema.parse()` again for safety.
 4. **Token usage** — `response.usage?.input_tokens` / `output_tokens` are recorded by `RunTraceService` when eval tracing is enabled.
+5. **Prompt caching** — eligible exact prompt prefixes can be reused on retry. Cache
+   hits remain subject to OpenAI's prompt-length and prefix-matching rules, and the
+   gateway records `usage.input_tokens_details.cached_tokens` for observability.
 
 ## Pipeline stages
 

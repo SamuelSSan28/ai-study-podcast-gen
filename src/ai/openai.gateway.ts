@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { AiGateway, GeneratedPlan, PlanGenerationInput } from '../application/ports';
 import {
   ArticleReview,
@@ -345,9 +346,13 @@ export class OpenAiGateway implements AiGateway {
     schema: z.ZodType<T>,
     webSearch = false,
   ): Promise<T> {
+    // Route identical retries to the same prompt cache without exposing prompt contents.
+    // OpenAI still validates the exact prompt prefix before serving cached input tokens.
+    const promptCacheKey = `study-podcast:${name}:${createHash('sha256').update(input).digest('hex')}`;
     const response = await this.client.responses.parse({
       model,
       input,
+      prompt_cache_key: promptCacheKey,
       text: { format: zodTextFormat(schema, name) },
       ...(webSearch
         ? {
@@ -360,6 +365,7 @@ export class OpenAiGateway implements AiGateway {
       model,
       name,
       inputTokens: response.usage?.input_tokens,
+      cachedInputTokens: response.usage?.input_tokens_details?.cached_tokens,
       outputTokens: response.usage?.output_tokens,
       webSearch,
     });
