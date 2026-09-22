@@ -1,0 +1,12 @@
+{
+  "name": "AI Study Podcast Generator",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "app",
+      "command": "npm run start:dev"
+    }
+  ]
+}
