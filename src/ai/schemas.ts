@@ -282,6 +282,9 @@ const explanationSectionSchema = z
     dialogueReason: explanationDialogueReasonSchema.nullable(),
     dialoguePrompt: z.string().nullable(),
     recap: z.boolean(),
+    listenerQuestion: z.string().min(1),
+    takeaway: z.string().min(1),
+    transitionFromPrevious: z.string().min(1).nullable(),
   })
   .superRefine((section, ctx) => {
     if (section.speakerMode === 'dialogue' && !section.dialogueReason) {
@@ -313,12 +316,31 @@ const explanationSectionSchema = z
       });
     }
   });
-export const explanationConversationPlanSchema = z.object({
-  mode: z.literal('EXPLANATION'),
-  version: z.string(),
-  title: z.string(),
-  sections: z.array(explanationSectionSchema).min(1),
-});
+export const explanationConversationPlanSchema = z
+  .object({
+    mode: z.literal('EXPLANATION'),
+    version: z.string(),
+    title: z.string(),
+    sections: z.array(explanationSectionSchema).min(1),
+  })
+  .superRefine((plan, ctx) => {
+    plan.sections.forEach((section, index) => {
+      if (index === 0 && section.transitionFromPrevious !== null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'transitionFromPrevious must be null on the first section',
+          path: ['sections', index, 'transitionFromPrevious'],
+        });
+      }
+      if (index > 0 && !section.transitionFromPrevious) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'transitionFromPrevious is required after the first section',
+          path: ['sections', index, 'transitionFromPrevious'],
+        });
+      }
+    });
+  });
 const explanationTurnSchema = z.object({
   id: z.string(),
   speaker: z.enum(['HOST', 'INSTRUCTOR', 'CO_HOST']),

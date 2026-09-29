@@ -4,8 +4,10 @@ import {
   StudyArticleSection,
   StudyContent,
 } from '../../../domain/models';
+import { EXPLANATION_DELIVERY_HINTS, EXPLANATION_PEDAGOGICAL_RULES } from './pedagogical-rules';
+import { EXPLANATION_SPEAKER_POLICY } from './speaker-policy';
 
-export const EXPLANATION_SECTION_ADAPTER_PROMPT_VERSION = 'section-adapter.explanation.v1';
+export const EXPLANATION_SECTION_ADAPTER_PROMPT_VERSION = 'section-adapter.explanation.v2';
 
 export function buildExplanationSectionAdapterPrompt(input: {
   articleGoal: string;
@@ -31,8 +33,15 @@ example containing new technical information, or anticipate future sections. Tra
 
 For instructor_solo, emit only INSTRUCTOR. For dialogue, CO_HOST must express the specified
 misconception/comparison/tradeoff/decision and must contribute reasoning—never agreement or paraphrase.
+Use listenerQuestion, takeaway, and transitionFromPrevious as spoken shape only. Open from
+transitionFromPrevious when it is present, and land on the takeaway before leaving the section.
+If a cue is missing, do not invent facts to fill it.
 Use sectionId exactly "${input.articleSection.id}" for every turn. Return local zero-based contiguous
 turn sequences and semantic delivery style only; do not generate pause milliseconds or pace.
 Also return the complete delivery-only state: closing phrase/idea, unchanged established terminology,
-examples reused from the article, and minimal speaker continuity. This state must not add knowledge.`;
+examples reused from the article, and minimal speaker continuity. This state must not add knowledge.
+
+${EXPLANATION_SPEAKER_POLICY}
+${EXPLANATION_PEDAGOGICAL_RULES}
+${EXPLANATION_DELIVERY_HINTS}`;
 }

@@ -132,5 +132,9 @@ describe('modular generation prompts', () => {
     expect(prompt).toContain('Transform ONE canonical article section');
     expect(prompt).toContain('Transform, do not expand');
     expect(prompt).toContain('not yet allowed');
+    expect(prompt).toContain('LISTENING COMPREHENSION');
+    expect(prompt).toContain('at most one new technical idea');
+    expect(prompt).toContain('transitionFromPrevious');
+    expect(prompt).not.toContain('LEARNING_PROMISE');
   });
 });

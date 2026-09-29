@@ -55,6 +55,9 @@ describe('resolvePrompt', () => {
     expect(result.prompt).toContain('ARTICLE FIDELITY');
     expect(result.prompt).toContain('SPEAKER POLICY');
     expect(result.prompt).toContain('speakerMode');
+    expect(result.prompt).toContain('listenerQuestion');
+    expect(result.prompt).toContain('transitionFromPrevious');
+    expect(result.prompt).not.toContain('LEARNING_PROMISE');
   });
 
   it('resolves the explanation script with transform rules', () => {
@@ -89,5 +92,7 @@ describe('resolvePrompt', () => {
     expect(result.prompt).toContain('SOURCE ARTICLE');
     expect(result.prompt).toContain('SPEAKER POLICY');
     expect(result.prompt).toContain('speakerMode');
+    expect(result.prompt).toContain('LISTENING COMPREHENSION');
+    expect(result.prompt).toContain('at most one new technical idea');
   });
 });

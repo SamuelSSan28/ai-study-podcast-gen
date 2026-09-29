@@ -1,10 +1,10 @@
 import { ExplanationConversationPlan, StudyContent, StudyPlanTopic } from '../../../domain/models';
 import { NOTION_SCRIPT_RULES } from '../../../persistence/notion-format.contract';
 import { formatScriptSourceContext, SCRIPT_TRANSFORM_RULES } from '../scope-discipline';
-import { EXPLANATION_DELIVERY_HINTS } from './pedagogical-rules';
+import { EXPLANATION_DELIVERY_HINTS, EXPLANATION_PEDAGOGICAL_RULES } from './pedagogical-rules';
 import { EXPLANATION_SPEAKER_POLICY } from './speaker-policy';
 
-export const EXPLANATION_SCRIPT_PROMPT_VERSION = 'lesson-script.explanation.v7';
+export const EXPLANATION_SCRIPT_PROMPT_VERSION = 'lesson-script.explanation.v8';
 
 export function buildExplanationScriptPrompt(
   topic: StudyPlanTopic,
@@ -24,8 +24,13 @@ recap, and turn an existing reasoning point into dialogue. You may not introduce
 a new technical example or concept, architecture advice, future curriculum, or invented claims.
 
 ${EXPLANATION_SPEAKER_POLICY}
+${EXPLANATION_PEDAGOGICAL_RULES}
 ${SCRIPT_TRANSFORM_RULES}
 ${EXPLANATION_DELIVERY_HINTS}
+
+Use each section's listenerQuestion, takeaway, and transitionFromPrevious as spoken shape only.
+Open from transitionFromPrevious when it is present. Land on the takeaway before leaving the section.
+If a cue is missing, do not invent facts to fill it.
 
 Return stable turn ids, zero-based contiguous sequence, article section ids, speaker, role, optional
 semantic delivery style, and duration estimate. Do not generate pause milliseconds or pace metadata.

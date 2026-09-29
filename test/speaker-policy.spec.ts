@@ -34,6 +34,9 @@ function soloSection(overrides: Record<string, unknown> = {}): Record<string, un
     dialogueReason: null,
     dialoguePrompt: null,
     recap: false,
+    listenerQuestion: 'What does this section settle?',
+    takeaway: 'One conclusion already in the section.',
+    transitionFromPrevious: null,
     ...overrides,
   };
 }
@@ -41,10 +44,24 @@ function soloSection(overrides: Record<string, unknown> = {}): Record<string, un
 function fiveSections(middle: Record<string, unknown>): Array<Record<string, unknown>> {
   return [
     soloSection({ articleSectionId: 'hook' }),
-    soloSection({ articleSectionId: 'promise' }),
-    soloSection({ articleSectionId: 'setup' }),
-    soloSection(middle),
-    soloSection({ articleSectionId: 'recap', recap: true }),
+    soloSection({
+      articleSectionId: 'promise',
+      transitionFromPrevious: 'What skill does that problem require?',
+    }),
+    soloSection({
+      articleSectionId: 'setup',
+      transitionFromPrevious: 'Where does that skill show up?',
+    }),
+    soloSection({
+      articleSectionId: 'lift',
+      transitionFromPrevious: 'What happens when we apply it?',
+      ...middle,
+    }),
+    soloSection({
+      articleSectionId: 'recap',
+      recap: true,
+      transitionFromPrevious: 'What rule should we keep?',
+    }),
   ];
 }
 
@@ -94,6 +111,27 @@ describe('explanation speaker policy schema', () => {
       }),
     });
     expect(result.success).toBe(true);
+  });
+
+  it('requires a transition only after the first section', () => {
+    const missingBridge = explanationConversationPlanSchema.safeParse({
+      mode: 'EXPLANATION',
+      version: '1',
+      title: 'useState',
+      sections: fiveSections({ transitionFromPrevious: null }),
+    });
+    expect(missingBridge.success).toBe(false);
+
+    const openingBridge = explanationConversationPlanSchema.safeParse({
+      mode: 'EXPLANATION',
+      version: '1',
+      title: 'useState',
+      sections: [
+        soloSection({ transitionFromPrevious: 'Before we start...' }),
+        ...fiveSections({}).slice(1),
+      ],
+    });
+    expect(openingBridge.success).toBe(false);
   });
 
   it('accepts a thin plan without legacy narrative metadata', () => {

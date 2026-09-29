@@ -2,7 +2,7 @@ import { CreateConversationPlanInput } from '../../../domain/models';
 import { EXPLANATION_SPEAKER_POLICY } from './speaker-policy';
 import { formatPlannerSourceArticle, PLANNER_ARTICLE_FIDELITY } from '../scope-discipline';
 
-export const EXPLANATION_PLANNER_PROMPT_VERSION = 'lesson-planner.explanation.v6';
+export const EXPLANATION_PLANNER_PROMPT_VERSION = 'lesson-planner.explanation.v7';
 
 export function buildExplanationPlannerPrompt(input: CreateConversationPlanInput): string {
   return `Plan how the canonical article should be taught in audio. Do not invent a second lesson and do not write dialogue.
@@ -18,7 +18,12 @@ For each section return only:
 - dialogueReason: misconception, comparison, tradeoff, or decision when dialogue is justified; otherwise null;
 - dialoguePrompt: the exact article-grounded doubt, contrast, tradeoff, or decision the second
   speaker contributes; null for instructor_solo;
-- recap: whether this section should close with a concise recap.
+- recap: whether this section should close with a concise recap;
+- listenerQuestion: the question a listener is holding that this section answers. It must be answerable from this section alone;
+- takeaway: one spoken sentence that restates this section's conclusion. No new claim;
+- transitionFromPrevious: a short bridge from the previous section's idea into this one, using only ideas already established. null on the first section.
+
+These three cues are delivery only. They connect sections for the ear. They do not reorder the article and they do not add technical content.
 
 NARRATION TO TEACH. DIALOGUE TO REASON.
 Use instructor_solo by default for definitions, mental models, foundational explanations,

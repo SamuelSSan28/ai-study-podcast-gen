@@ -46,7 +46,10 @@ import {
   buildArticleSectionReviewPrompt,
   buildArticleSectionRevisionPrompt,
 } from './prompts/article-generation.prompt';
-import { buildExplanationSectionAdapterPrompt } from './prompts/explanation/section-adapter.prompt';
+import {
+  buildExplanationSectionAdapterPrompt,
+  EXPLANATION_SECTION_ADAPTER_PROMPT_VERSION,
+} from './prompts/explanation/section-adapter.prompt';
 
 @Injectable()
 export class OpenAiGateway implements AiGateway {
@@ -271,7 +274,7 @@ export class OpenAiGateway implements AiGateway {
     return {
       id: `explanation-${topic.slug}`,
       title: topic.title,
-      version: 'section-adapter.explanation.v1',
+      version: EXPLANATION_SECTION_ADAPTER_PROMPT_VERSION,
       turns,
       estimatedDurationSeconds: Math.max(1, Math.round((wordCount / 145) * 60)),
     };

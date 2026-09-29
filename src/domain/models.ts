@@ -208,6 +208,12 @@ export interface ExplanationSection {
   dialogueReason?: ExplanationDialogueReason | null;
   dialoguePrompt?: string | null;
   recap?: boolean;
+  /** Question this section answers for the listener. Delivery only; must already be in the article section. */
+  listenerQuestion?: string | null;
+  /** One spoken sentence restating the section conclusion. Delivery only. */
+  takeaway?: string | null;
+  /** Bridge from the previous section. Null on the first section. Delivery only. */
+  transitionFromPrevious?: string | null;
   /** @deprecated persisted-plan compatibility */
   id?: string;
   episodeBeat?: string;

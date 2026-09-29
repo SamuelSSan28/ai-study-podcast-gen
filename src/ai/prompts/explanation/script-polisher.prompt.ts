@@ -1,8 +1,9 @@
 import { ExplanationConversationPlan, RawPodcastScript, StudyContent } from '../../../domain/models';
 import { NOTION_POLISHER_PUBLISH_RULES } from '../../../persistence/notion-format.contract';
+import { EXPLANATION_PEDAGOGICAL_RULES } from './pedagogical-rules';
 import { EXPLANATION_SPEAKER_POLICY } from './speaker-policy';
 
-export const EXPLANATION_POLISHER_PROMPT_VERSION = 'script-polisher.explanation.v5';
+export const EXPLANATION_POLISHER_PROMPT_VERSION = 'script-polisher.explanation.v6';
 
 export function buildExplanationPolisherPrompt(input: {
   article: StudyContent;
@@ -21,7 +22,14 @@ contrast, inference, alternative, or decision. If a turn merely agrees with or p
 previous turn, remove or merge it. If several examples demonstrate the same point, keep the strongest.
 Preserve stable ids where retained and renumber sequence contiguously from zero.
 
+Listening pass, still without new claims:
+- Split a sentence that carries more than one new idea, condition, or relationship.
+- Shorten clauses. Remove article voice such as "this section", "as follows", "below", and "the following".
+- If more than two EXPLAIN turns occur in a row, recast one as EXAMPLE, QUESTION, TRANSITION, or RECAP when the existing wording already supports that role. Keep the same speaker.
+- Smooth a section boundary with the plan's transitionFromPrevious and takeaway when those cues exist. Do not add facts to satisfy a missing cue.
+
 ${EXPLANATION_SPEAKER_POLICY}
+${EXPLANATION_PEDAGOGICAL_RULES}
 ${NOTION_POLISHER_PUBLISH_RULES}
 
 CANONICAL ARTICLE: ${JSON.stringify(input.article)}
